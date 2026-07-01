@@ -65,7 +65,13 @@ class ProcessLinker:
         self._llm = llm
         self._s = settings
 
-    async def link(self, db: AsyncSession, item: Item) -> None:
+    async def link(self, db: AsyncSession, item: Item, event_time: datetime | None = None) -> None:
+        """Привязать Item к процессу.
+
+        event_time — момент события (для бэкфилла передаём item.created_at, чтобы
+        started_at/last_activity_at процессов и окно недавности кандидатов брались
+        по времени уведомления, а не по wall-clock. По умолчанию — now()).
+        """
         text = "\n".join(p for p in (item.title, item.summary) if p).strip()
         if not text:
             return
@@ -75,14 +81,15 @@ class ProcessLinker:
             logger.exception("Эмбеддинг не удался — Item %s останется без процесса", item.id)
             return
 
+        now = event_time or datetime.now(UTC)
         item.embedding = emb
-        candidates = await self._retrieve(db, emb, item)
+        candidates = await self._retrieve(db, emb, item, now)
         decision = await self._decide(item, candidates)
-        await self._apply(db, item, emb, decision, candidates)
+        await self._apply(db, item, emb, decision, candidates, now)
 
-    async def _retrieve(self, db: AsyncSession, emb: list[float], item: Item) -> list[_Candidate]:
+    async def _retrieve(self, db: AsyncSession, emb: list[float], item: Item, now: datetime) -> list[_Candidate]:
         """Кандидаты: процессы open/frozen с centroid, в окне недавности, ближайшие по cosine."""
-        recency = datetime.now(UTC) - _days(self._s.process_recency_days)
+        recency = now - _days(self._s.process_recency_days)
         distance = Process.centroid.cosine_distance(emb)
         stmt = (
             select(Process, distance.label("dist"))
@@ -145,8 +152,8 @@ class ProcessLinker:
         emb: list[float],
         decision: _Decision,
         candidates: list[_Candidate],
+        now: datetime,
     ) -> None:
-        now = datetime.now(UTC)
         if decision.action == "attach" and decision.process_id is not None:
             proc = next((c.process for c in candidates if c.process.id == decision.process_id), None)
             if proc is None:
