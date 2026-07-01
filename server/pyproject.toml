@@ -1,0 +1,41 @@
+[project]
+name = "aggregat-server"
+version = "0.1.0"
+description = "Aggregat — серверная часть: ingestion, CRUD, grouping, классификация (Фазы 2a+2b)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",  # используется Ollama-провайдерами (LLM и эмбеддинги) и тестовым клиентом
+    "pgvector>=0.3.0",  # тип Vector для SQLAlchemy + pgvector-операторы (RAG)
+]
+
+[project.optional-dependencies]
+# LLM-провайдер Anthropic (Фаза 2b). Ollama работает через httpx из основных зависимостей.
+llm = [
+    "anthropic>=0.40.0",
+]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

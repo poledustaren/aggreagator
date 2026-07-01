@@ -1,0 +1,367 @@
+openapi: 3.1.0
+info:
+  title: Aggregat API
+  version: "1.0.0"
+  description: >
+    Контракт между Android-клиентом (источник пушей), сервером-обработчиком
+    и сайтом-дашбордом. Сервер группирует уведомления, тегирует их по
+    GTD-структуре (Area/Project) и оценивает важность.
+servers:
+  - url: https://api.aggregat.local/v1
+    description: self-host
+
+security:
+  - deviceToken: []
+
+tags:
+  - name: devices
+  - name: ingest
+  - name: items
+  - name: groups
+  - name: areas
+  - name: projects
+  - name: rules
+  - name: tags
+
+paths:
+  /devices:register:
+    post:
+      tags: [devices]
+      summary: Регистрация устройства, выдача токена
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceRegisterRequest' }
+      responses:
+        "201":
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceRegisterResponse' }
+
+  /notifications:ingest:
+    post:
+      tags: [ingest]
+      summary: Батч сырых уведомлений с телефона (идемпотентно по client_id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestRequest' }
+      responses:
+        "202":
+          description: Принято в обработку
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestResponse' }
+
+  /items:
+    get:
+      tags: [items]
+      summary: Лента обогащённых Item для сайта
+      parameters:
+        - { name: importance_min, in: query, schema: { type: integer, minimum: 0, maximum: 100 } }
+        - { name: area_id,   in: query, schema: { type: string, format: uuid } }
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: tag,       in: query, schema: { type: string } }
+        - { name: status,    in: query, schema: { $ref: '#/components/schemas/ItemStatus' } }
+        - { name: from,      in: query, schema: { type: string, format: date-time } }
+        - { name: cursor,    in: query, schema: { type: string } }
+        - { name: limit,     in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemPage' }
+
+  /items/{id}:
+    get:
+      tags: [items]
+      summary: Один Item
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } }
+        "404": { description: Не найдено }
+    patch:
+      tags: [items]
+      summary: Действие пользователя (done / snooze / reassign / dismiss)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ItemPatch' }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } }
+
+  /groups:
+    get:
+      tags: [groups]
+      summary: Треды (сгруппированные Item)
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ItemStatus' } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit,  in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/GroupPage' } } }
+
+  /areas:
+    get:
+      tags: [areas]
+      summary: Список зон
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Area' } } } } } }
+    post:
+      tags: [areas]
+      summary: Создать зону
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AreaInput' } } } }
+      responses: { "201": { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Area' } } } } }
+  /areas/{id}:
+    patch:
+      tags: [areas]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AreaInput' } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Area' } } } } }
+    delete:
+      tags: [areas]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { description: Удалено } }
+
+  /projects:
+    get:
+      tags: [projects]
+      parameters: [{ name: area_id, in: query, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Project' } } } } } }
+    post:
+      tags: [projects]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectInput' } } } }
+      responses: { "201": { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } } }
+  /projects/{id}:
+    patch:
+      tags: [projects]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProjectInput' } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Project' } } } } }
+    delete:
+      tags: [projects]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { description: Удалено } }
+
+  /rules:
+    get:
+      tags: [rules]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Rule' } } } } } }
+    post:
+      tags: [rules]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RuleInput' } } } }
+      responses: { "201": { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Rule' } } } } }
+  /rules/{id}:
+    patch:
+      tags: [rules]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RuleInput' } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Rule' } } } } }
+    delete:
+      tags: [rules]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { description: Удалено } }
+
+  /tags:
+    get:
+      tags: [tags]
+      summary: Известные теги (для автодополнения/фильтров)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { type: string } } } } } }
+
+components:
+  securitySchemes:
+    deviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+
+  schemas:
+    DeviceRegisterRequest:
+      type: object
+      required: [platform, device_name]
+      properties:
+        platform: { type: string, enum: [android] }
+        device_name: { type: string }
+        push_token: { type: string, description: опционально, для будущего push-канала }
+
+    DeviceRegisterResponse:
+      type: object
+      properties:
+        device_id: { type: string, format: uuid }
+        token: { type: string, description: bearer-токен устройства }
+
+    RawNotification:
+      type: object
+      required: [client_id, source_app, posted_at]
+      properties:
+        client_id:   { type: string, description: уникальный id уведомления на устройстве (ключ идемпотентности) }
+        source_app:  { type: string, description: package name, напр. com.whatsapp }
+        app_label:   { type: string, description: человекочитаемое имя приложения }
+        title:       { type: string }
+        text:        { type: string }
+        subtext:     { type: string }
+        category:    { type: string, description: Android category (msg, email, event, ...) }
+        posted_at:   { type: string, format: date-time }
+        extras:      { type: object, additionalProperties: true }
+
+    IngestRequest:
+      type: object
+      required: [notifications]
+      properties:
+        notifications:
+          type: array
+          items: { $ref: '#/components/schemas/RawNotification' }
+
+    IngestResponse:
+      type: object
+      properties:
+        accepted: { type: integer }
+        duplicates: { type: integer, description: отброшено по client_id }
+
+    ItemStatus:
+      type: string
+      enum: [inbox, snoozed, done, dismissed]
+
+    Item:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        summary: { type: string, description: краткое саммари от пайплайна }
+        importance: { type: integer, minimum: 0, maximum: 100 }
+        status: { $ref: '#/components/schemas/ItemStatus' }
+        suggested_action: { type: string }
+        area_id: { type: string, format: uuid, nullable: true }
+        project_id: { type: string, format: uuid, nullable: true }
+        group_id: { type: string, format: uuid, nullable: true }
+        process_id: { type: string, format: uuid, nullable: true, description: процесс (RAG-надстройка) }
+        tags: { type: array, items: { type: string } }
+        source_apps: { type: array, items: { type: string } }
+        classified_by: { type: string, enum: [rules, llm, manual], description: какой слой решил }
+        confidence: { type: number, format: float, minimum: 0, maximum: 1 }
+        snoozed_until: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ItemPatch:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/ItemStatus' }
+        snoozed_until: { type: string, format: date-time }
+        area_id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        tags: { type: array, items: { type: string } }
+      description: >
+        Любое поле опционально. Установка area_id/project_id/tags вручную
+        фиксируется как classified_by=manual и используется как обучающий сигнал
+        для правил.
+
+    ItemPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Item' } }
+        next_cursor: { type: string, nullable: true }
+
+    Group:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        importance: { type: integer, minimum: 0, maximum: 100, description: максимум по Item группы }
+        item_count: { type: integer }
+        area_id: { type: string, format: uuid, nullable: true }
+        project_id: { type: string, format: uuid, nullable: true }
+        last_activity_at: { type: string, format: date-time }
+        items: { type: array, items: { $ref: '#/components/schemas/Item' } }
+
+    GroupPage:
+      type: object
+      properties:
+        groups: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        next_cursor: { type: string, nullable: true }
+
+    Area:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
+        sort: { type: integer }
+    AreaInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        color: { type: string }
+        sort: { type: integer }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        area_id: { type: string, format: uuid }
+        name: { type: string }
+        active: { type: boolean }
+        due_at: { type: string, format: date-time, nullable: true }
+    ProjectInput:
+      type: object
+      required: [area_id, name]
+      properties:
+        area_id: { type: string, format: uuid }
+        name: { type: string }
+        active: { type: boolean, default: true }
+        due_at: { type: string, format: date-time }
+
+    Rule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        priority: { type: integer, description: меньше = раньше применяется }
+        match: { $ref: '#/components/schemas/RuleMatch' }
+        action: { $ref: '#/components/schemas/RuleAction' }
+        enabled: { type: boolean }
+    RuleInput:
+      type: object
+      required: [name, match, action]
+      properties:
+        name: { type: string }
+        priority: { type: integer, default: 100 }
+        match: { $ref: '#/components/schemas/RuleMatch' }
+        action: { $ref: '#/components/schemas/RuleAction' }
+        enabled: { type: boolean, default: true }
+    RuleMatch:
+      type: object
+      description: Все указанные условия должны совпасть (AND).
+      properties:
+        source_app: { type: string }
+        title_regex: { type: string }
+        text_regex: { type: string }
+        category: { type: string }
+    RuleAction:
+      type: object
+      description: Что навесить при срабатывании. confident=true завершает пайплайн без LLM.
+      properties:
+        set_area_id: { type: string, format: uuid }
+        set_project_id: { type: string, format: uuid }
+        add_tags: { type: array, items: { type: string } }
+        set_importance: { type: integer, minimum: 0, maximum: 100 }
+        confident: { type: boolean, default: false }
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        detail: { type: string }

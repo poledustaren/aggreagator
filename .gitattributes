@@ -1,0 +1,7 @@
+# Единообразные окончания строк: в репозитории всегда LF (важно для Linux-сервера,
+# где shell-скрипты/Dockerfile с CRLF ломаются). .bat остаётся CRLF (Windows).
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.svg text eol=lf

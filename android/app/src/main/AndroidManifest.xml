@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Сеть: отправка батчей на сервер -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Android 13+: разрешение на показ собственных уведомлений (статус работы сервиса) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Чтобы WorkManager мог планировать периодическую работу с учётом Doze -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Просьба исключить приложение из энергосбережения (Doze/App Standby), чтобы
+         агрессивные прошивки не убивали слушателя уведомлений и не тормозили отправку. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".AggregatApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Aggregat"
+        android:usesCleartextTraffic="true">
+        <!--
+            usesCleartextTraffic=true: приложение self-host, пользователь сам вводит base URL
+            сервера (в т.ч. может быть http://192.168.x.x в локальной сети без TLS).
+        -->
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Aggregat">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Портал: веб-дашборд в WebView с авто-авторизацией (инжект токена в localStorage). -->
+        <activity
+            android:name=".ui.portal.PortalActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Aggregat" />
+
+        <!-- Слушатель системных уведомлений. Требует явного разрешения пользователя
+             через Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS. -->
+        <service
+            android:name=".service.AggregatNotificationListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- WorkManager сам регистрирует свой initializer через androidx.startup,
+             явный provider не нужен. -->
+
+        <!-- После перезагрузки переармируем периодическую отправку (страховка поверх
+             штатного восстановления WorkManager). -->
+        <receiver
+            android:name=".work.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

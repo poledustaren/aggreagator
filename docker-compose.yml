@@ -1,0 +1,56 @@
+# Aggregat — весь стек одной командой: Postgres + сервер (FastAPI) + сайт (nginx).
+# Запуск:  docker compose up -d --build
+#
+# Перед запуском: cp server/.env.example server/.env  и вписать OLLAMA_API_KEY
+# (ключ с ollama.com для модели glm-5.2:cloud). Без ключа классификация работает
+# только на правилах (LLM_PROVIDER можно оставить, при пустом ключе LLM отключится).
+
+services:
+  postgres:
+    # pgvector/pgvector:pg16 = postgres 16 + расширение vector (RAG/процессы).
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: aggregat
+      POSTGRES_PASSWORD: aggregat
+      POSTGRES_DB: aggregat
+    ports:
+      - "5432:5432"
+    volumes:
+      - aggregat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aggregat -d aggregat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build: ./server
+    # LLM-настройки (провайдер, ключ Ollama Cloud, модели) берутся из server/.env.
+    env_file:
+      - path: ./server/.env
+        required: false
+    environment:
+      # DATABASE_URL переопределяем на внутренний хост postgres (важнее значения из .env).
+      DATABASE_URL: postgresql+asyncpg://aggregat:aggregat@postgres:5432/aggregat
+      LOG_LEVEL: info
+    ports:
+      # Наружу (в т.ч. в сеть Netbird на 100.93.215.38) сервер доступен на 8000.
+      - "8000:8000"
+    # Доступ из контейнера к хостовому Ollama (эмбеддинги bge-m3): host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    ports:
+      # 8080 занят локальным прокси xray (127.0.0.1:8080), поэтому сайт на 8081.
+      # Наружу (Netbird 100.93.215.38) сайт доступен на http://100.93.215.38:8081
+      - "8081:80"
+    depends_on:
+      - server
+
+volumes:
+  aggregat_pgdata:

@@ -1,0 +1,40 @@
+# ── Секреты (НИКОГДА не коммитить) ──────────────────────────────────────────
+ollamakey.txt
+**/.env
+!**/.env.example
+*.htpasswd
+*.pem
+*.key
+*.keystore
+*.jks
+backup*.sql
+*-secrets*
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# ── Node / web ──────────────────────────────────────────────────────────────
+node_modules/
+dist/
+.vite/
+
+# ── Android ─────────────────────────────────────────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+# ── Прочее ──────────────────────────────────────────────────────────────────
+.DS_Store
+*.log
+Projectsaggregatandroid_window_dump.xml
+.tools/

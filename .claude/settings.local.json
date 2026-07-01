@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import yaml,sys; d=yaml.safe_load\\(open\\('contracts/openapi.yaml',encoding='utf-8'\\)\\); print\\('OK paths:',len\\(d['paths']\\),'schemas:',len\\(d['components']['schemas']\\)\\)\")",
+      "Bash(python3 -c \"import yaml; d=yaml.safe_load\\(open\\('contracts/openapi.yaml',encoding='utf-8'\\)\\); print\\('OK',len\\(d['paths']\\)\\)\")"
+    ]
+  }
+}
