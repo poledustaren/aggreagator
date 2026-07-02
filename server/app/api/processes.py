@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_device
@@ -16,6 +16,8 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import Device, Item, Process
 from app.models.entities import ProcessStatus as ORMProcessStatus
+from app.pipeline.llm_provider import build_provider
+from app.pipeline.relation_finder import ProcInfo, RelationFinder
 from app.schemas.common import ProcessStatus
 from app.schemas.item import Item as ItemSchema
 from app.schemas.process import (
@@ -27,9 +29,13 @@ from app.schemas.process import (
     ProcessTimeline,
     ProcessTimelineEntry,
 )
+from app.schemas.process_graph import GraphEdge, GraphNode, GraphTheme, ProcessGraph
 
 router = APIRouter(tags=["processes"])
 settings = get_settings()
+
+# Максимум процессов на анализ связей за один запрос (ограничение токенов LLM).
+_GRAPH_MAX_PROCESSES = 40
 
 _CURSOR_SEP = "|"
 
@@ -57,7 +63,7 @@ def _timeline_end(p: Process) -> datetime | None:
     return None
 
 
-# ── timeline и freeze объявляем ДО /{id}, чтобы путь не перехватился как uuid ──
+# ── timeline, graph и freeze объявляем ДО /{id}, чтобы путь не перехватился как uuid ──
 @router.get("/processes/timeline", response_model=ProcessTimeline)
 async def processes_timeline(
     from_: datetime | None = Query(default=None, alias="from"),
@@ -65,19 +71,13 @@ async def processes_timeline(
     device: Device = Depends(get_current_device),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessTimeline:
-    conditions = []
-    if from_ is not None:
-        # процесс пересекается с окном, если его активность заканчивается не раньше from
-        conditions.append(Process.last_activity_at >= from_)
-    if to is not None:
-        conditions.append(Process.started_at <= to)
+    # Оконный режим: если задан промежуток — конец процесса = последнее его сообщение
+    # В ОКНЕ (процесс «формально конечен для текущего вида»), начало = первое в окне.
+    if from_ is not None or to is not None:
+        return ProcessTimeline(entries=await _windowed_entries(db, from_, to))
 
-    stmt = select(Process)
-    if conditions:
-        stmt = stmt.where(and_(*conditions))
-    stmt = stmt.order_by(Process.started_at)
-    rows = (await db.execute(stmt)).scalars().all()
-
+    # Полный режим (без окна): границы по полям самого процесса.
+    rows = (await db.execute(select(Process).order_by(Process.started_at))).scalars().all()
     entries = [
         ProcessTimelineEntry(
             id=p.id,
@@ -92,6 +92,123 @@ async def processes_timeline(
         for p in rows
     ]
     return ProcessTimeline(entries=entries)
+
+
+async def _window_item_agg(db: AsyncSession, from_: datetime | None, to: datetime | None):
+    """Агрегаты сообщений по процессам В ОКНЕ: (process_id → min/max created_at, count)."""
+    conds = [Item.process_id.is_not(None)]
+    if from_ is not None:
+        conds.append(Item.created_at >= from_)
+    if to is not None:
+        conds.append(Item.created_at <= to)
+    stmt = (
+        select(
+            Item.process_id,
+            func.min(Item.created_at),
+            func.max(Item.created_at),
+            func.count(Item.id),
+        )
+        .where(and_(*conds))
+        .group_by(Item.process_id)
+    )
+    return {pid: (mn, mx, cnt) for pid, mn, mx, cnt in (await db.execute(stmt)).all()}
+
+
+async def _windowed_entries(
+    db: AsyncSession, from_: datetime | None, to: datetime | None
+) -> list[ProcessTimelineEntry]:
+    agg = await _window_item_agg(db, from_, to)
+    if not agg:
+        return []
+    procs = (await db.execute(select(Process).where(Process.id.in_(agg.keys())))).scalars().all()
+    entries = []
+    for p in procs:
+        mn, mx, cnt = agg[p.id]
+        entries.append(
+            ProcessTimelineEntry(
+                id=p.id,
+                title=p.title,
+                status=ProcessStatus(p.status.value),
+                area_id=p.area_id,
+                project_id=p.project_id,
+                start=mn,
+                end=mx,  # последнее сообщение в окне — формальный конец для вида
+                item_count=cnt,
+            )
+        )
+    entries.sort(key=lambda e: e.start)
+    return entries
+
+
+@router.get("/processes/graph", response_model=ProcessGraph)
+async def processes_graph(
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    device: Device = Depends(get_current_device),
+    db: AsyncSession = Depends(get_db),
+) -> ProcessGraph:
+    """Раздел «Связи»: процессы в окне → дерево тем + связи с аргументацией (LLM на лету)."""
+    llm = build_provider(settings)
+    if llm is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM выключен (llm_provider=none) — граф связей недоступен.",
+        )
+
+    agg = await _window_item_agg(db, from_, to)
+    if not agg:
+        return ProcessGraph(window_from=from_, window_to=to, nodes=[], themes=[], edges=[])
+
+    # Берём процессы окна, приоритет — по числу сообщений в окне (важные крупнее).
+    ordered_ids = sorted(agg.keys(), key=lambda pid: agg[pid][2], reverse=True)
+    truncated = len(ordered_ids) > _GRAPH_MAX_PROCESSES
+    ordered_ids = ordered_ids[:_GRAPH_MAX_PROCESSES]
+
+    procs = (await db.execute(select(Process).where(Process.id.in_(ordered_ids)))).scalars().all()
+    by_id = {p.id: p for p in procs}
+
+    nodes = []
+    infos = []
+    for pid in ordered_ids:
+        p = by_id.get(pid)
+        if p is None:
+            continue
+        mn, mx, cnt = agg[pid]
+        nodes.append(
+            GraphNode(
+                id=p.id,
+                title=p.title,
+                status=ProcessStatus(p.status.value),
+                area_id=p.area_id,
+                start=mn,
+                end=mx,
+                item_count=cnt,
+            )
+        )
+        centroid = list(p.centroid) if p.centroid is not None else None
+        infos.append(ProcInfo(id=p.id, title=p.title, summary=p.summary, centroid=centroid))
+
+    finder = RelationFinder(llm, settings)
+    analysis = await finder.analyze(infos)
+
+    themes = [GraphTheme(name=t["name"], process_ids=[uuid.UUID(x) for x in t["process_ids"]]) for t in analysis["themes"]]
+    edges = [
+        GraphEdge(
+            source=uuid.UUID(e["source"]),
+            target=uuid.UUID(e["target"]),
+            relation=e["relation"],
+            reason=e["reason"],
+            confidence=e["confidence"],
+        )
+        for e in analysis["edges"]
+    ]
+
+    # Проставим узлам их тему (для окраски).
+    theme_of = {pid: t.name for t in themes for pid in t.process_ids}
+    for n in nodes:
+        n.theme = theme_of.get(n.id)
+
+    return ProcessGraph(window_from=from_, window_to=to, nodes=nodes, themes=themes, edges=edges, truncated=truncated)
 
 
 @router.post("/processes/freeze")
