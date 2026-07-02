@@ -35,7 +35,7 @@ router = APIRouter(tags=["processes"])
 settings = get_settings()
 
 # Максимум процессов на анализ связей за один запрос (ограничение токенов LLM).
-_GRAPH_MAX_PROCESSES = 40
+_GRAPH_MAX_PROCESSES = 24
 
 _CURSOR_SEP = "|"
 

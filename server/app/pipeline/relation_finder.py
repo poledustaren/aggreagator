@@ -21,18 +21,18 @@ from app.pipeline.llm_provider import LLMProvider, parse_json_object
 logger = logging.getLogger(__name__)
 
 _SYSTEM = """Ты анализируешь «процессы» пользователя (темы/проблемы, тянущиеся во времени)
-в выбранном промежутке. Тебе дают список процессов и пары-кандидаты, похожие по смыслу.
-Сделай две вещи:
-1. Сгруппируй процессы в ТЕМЫ (2-6 тем), каждая — набор process_id.
+в выбранном промежутке. Процессы пронумерованы индексами [0], [1], … Тебе также дают
+пары-кандидаты, похожие по смыслу. Сделай две вещи:
+1. Сгруппируй процессы в ТЕМЫ (2-6 тем), каждая — набор индексов процессов.
 2. Определи СВЯЗИ между процессами и обоснуй каждую. Тип связи (relation):
    same_entity (об одном человеке/сервисе/счёте), causal (одно вызвало другое),
    follow_up (продолжение/следующий шаг), same_project (один проект/задача), related (иное).
    Для каждой связи дай короткую причину «почему связаны» и уверенность 0..1.
 
 Опирайся на кандидатные пары, но можешь добавить очевидные связи и вне их, а слабые — отбросить.
-Отвечай СТРОГО одним JSON:
-{"themes":[{"name":"<тема>","process_ids":["<id>",...]}],
- "edges":[{"source":"<id>","target":"<id>","relation":"<тип>","reason":"<почему>","confidence":0.x}]}"""
+Ссылайся на процессы ТОЛЬКО по их числовому индексу. Отвечай СТРОГО одним JSON:
+{"themes":[{"name":"<тема>","members":[0,3,5]}],
+ "edges":[{"source":0,"target":3,"relation":"<тип>","reason":"<почему>","confidence":0.7}]}"""
 
 
 @dataclass
@@ -85,18 +85,17 @@ class RelationFinder:
         return pairs[:cap]
 
     async def analyze(self, procs: list[ProcInfo]) -> dict:
-        """Вернуть {"themes": [...], "edges": [...]} по процессам окна."""
+        """Вернуть {"themes": [...], "edges": [...]} по процессам окна (ссылки по индексам)."""
         if len(procs) < 2:
             return {"themes": [], "edges": []}
 
         pairs = self.candidate_pairs(procs)
-        by_id = {str(p.id): p for p in procs}
 
         proc_lines = [
-            f"  id={p.id} | {(p.title or '')[:70]} | {(p.summary or '')[:100]}" for p in procs
+            f"  [{i}] {(p.title or '')[:70]} | {(p.summary or '')[:90]}" for i, p in enumerate(procs)
         ]
         pair_lines = [
-            f"  {procs[i].id} ~ {procs[j].id} (sim={sim:.2f})" for i, j, sim in pairs
+            f"  [{i}] ~ [{j}] (sim={sim:.2f})" for i, j, sim in pairs
         ] or ["  (нет явных кандидатов — поищи связи сам)"]
 
         prompt = (
@@ -106,49 +105,58 @@ class RelationFinder:
 
         try:
             text = await self._llm.complete(
-                model=self._model(), system=_SYSTEM, prompt=prompt, max_tokens=2048
+                model=self._model(), system=_SYSTEM, prompt=prompt, max_tokens=4096
             )
         except Exception:
             logger.exception("LLM-анализ связей не удался")
             return {"themes": [], "edges": []}
 
         data = parse_json_object(text)
-        themes = _norm_themes(data.get("themes"), by_id)
-        edges = _norm_edges(data.get("edges"), by_id)
+        themes = _norm_themes(data.get("themes"), procs)
+        edges = _norm_edges(data.get("edges"), procs)
+        if not themes and not edges:
+            logger.warning("Связи: пустой результат. len(text)=%d snippet=%r", len(text or ""), (text or "")[:300])
         return {"themes": themes, "edges": edges}
 
 
-def _to_uuid(v) -> uuid.UUID | None:
+def _to_index(v, n: int) -> int | None:
+    """Индекс процесса из ответа модели (int или строка-цифра), в пределах [0, n)."""
     try:
-        return uuid.UUID(str(v))
+        i = int(v)
     except (ValueError, TypeError):
         return None
+    return i if 0 <= i < n else None
 
 
-def _norm_themes(raw, by_id: dict) -> list[dict]:
+def _norm_themes(raw, procs: list[ProcInfo]) -> list[dict]:
+    n = len(procs)
     out = []
     for t in raw or []:
         if not isinstance(t, dict):
             continue
-        ids = [str(_to_uuid(pid)) for pid in (t.get("process_ids") or []) if _to_uuid(pid) and str(pid) in by_id]
+        members = t.get("members") or t.get("process_ids") or t.get("indices") or []
+        ids = []
+        for m in members:
+            i = _to_index(m, n)
+            if i is not None:
+                ids.append(str(procs[i].id))
         if ids:
             out.append({"name": str(t.get("name") or "тема")[:80], "process_ids": ids})
     return out
 
 
-def _norm_edges(raw, by_id: dict) -> list[dict]:
+def _norm_edges(raw, procs: list[ProcInfo]) -> list[dict]:
+    n = len(procs)
     out = []
     seen = set()
     for e in raw or []:
         if not isinstance(e, dict):
             continue
-        s = _to_uuid(e.get("source"))
-        tg = _to_uuid(e.get("target"))
-        if s is None or tg is None or s == tg:
+        si = _to_index(e.get("source"), n)
+        ti = _to_index(e.get("target"), n)
+        if si is None or ti is None or si == ti:
             continue
-        if str(s) not in by_id or str(tg) not in by_id:
-            continue
-        key = tuple(sorted((str(s), str(tg))))
+        key = tuple(sorted((si, ti)))
         if key in seen:
             continue
         seen.add(key)
@@ -158,8 +166,8 @@ def _norm_edges(raw, by_id: dict) -> list[dict]:
             conf = 0.5
         out.append(
             {
-                "source": str(s),
-                "target": str(tg),
+                "source": str(procs[si].id),
+                "target": str(procs[ti].id),
                 "relation": str(e.get("relation") or "related")[:32],
                 "reason": str(e.get("reason") or "")[:300],
                 "confidence": conf,
