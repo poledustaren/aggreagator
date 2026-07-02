@@ -11,7 +11,20 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import areas, devices, groups, ingest, items, processes, projects, rules, search, stats, tags
+from app.api import (
+    areas,
+    devices,
+    groups,
+    ingest,
+    items,
+    processes,
+    projects,
+    rule_suggestions,
+    rules,
+    search,
+    stats,
+    tags,
+)
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -64,7 +77,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for _module in (devices, ingest, items, groups, areas, projects, rules, tags, processes, stats, search):
+for _module in (
+    devices, ingest, items, groups, areas, projects, rules, rule_suggestions, tags, processes, stats, search
+):
     app.include_router(_module.router, prefix="/v1")
 
 
