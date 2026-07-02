@@ -9,7 +9,7 @@ import base64
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -118,6 +118,7 @@ async def get_item(
 async def patch_item(
     item_id: uuid.UUID,
     payload: ItemPatch,
+    response: Response,
     device: Device = Depends(get_current_device),
     db: AsyncSession = Depends(get_db),
 ) -> ItemSchema:
@@ -128,9 +129,11 @@ async def patch_item(
     data = payload.model_dump(exclude_unset=True)
 
     manual_reassign = False
+    dismissed_now = False
 
     if "status" in data:
         item.status = ORMItemStatus(data["status"].value if hasattr(data["status"], "value") else data["status"])
+        dismissed_now = item.status == ORMItemStatus.dismissed
     if "snoozed_until" in data:
         item.snoozed_until = data["snoozed_until"]
     if "area_id" in data:
@@ -151,8 +154,18 @@ async def patch_item(
 
     item.updated_at = _utc_now()
 
+    # Обучение на смахиваниях: ручной dismiss гасит похожие inbox-элементы
+    # (одним свайпом уходит вся пачка повторяющегося шума). Число — в заголовке.
+    also_dismissed = 0
+    settings = get_settings()
+    if dismissed_now and settings.junk_learning_enabled:
+        from app.pipeline.junk_filter import cascade_dismiss_similar
+
+        also_dismissed = await cascade_dismiss_similar(db, item, settings.junk_sim_threshold)
+
     await db.commit()
     await db.refresh(item)
+    response.headers["X-Also-Dismissed"] = str(also_dismissed)
     return ItemSchema.model_validate(item)
 
 

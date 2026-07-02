@@ -24,9 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db import AsyncSessionLocal
 from app.models import Area, Classification, Group, Item, Process, ProcessStatus, Project, RawNotification, Rule
+from app.models.entities import ItemStatus as ORMItemStatus
 from app.pipeline.classifier import ClassificationResult, Classifier, ClassifyContext, RawNotificationData
 from app.pipeline.composite import CompositeClassifier
 from app.pipeline.embeddings import build_embedder
+from app.pipeline.junk_filter import is_similar_to_dismissed
 from app.pipeline.llm_provider import build_provider
 from app.pipeline.llm_router import LLMRouter
 from app.pipeline.process_linker import ProcessLinker
@@ -158,6 +160,17 @@ async def _process_one(
     # RAG: привязать Item к процессу (best-effort — не ломает пайплайн при сбое).
     if linker is not None:
         await linker.link(db, item)
+
+        # Обучение на смахиваниях: если item похож на ранее смахнутую «пежню» —
+        # гасим сразу на входе, чтобы повторяющийся шум не всплывал в сводке.
+        s = get_settings()
+        if (
+            s.junk_learning_enabled
+            and item.status == ORMItemStatus.inbox
+            and item.embedding is not None
+            and await is_similar_to_dismissed(db, item.embedding, s.junk_sim_threshold, s.junk_lookback_days)
+        ):
+            item.status = ORMItemStatus.dismissed
 
 
 async def _upsert_group(db: AsyncSession, classification: ClassificationResult) -> Group | None:

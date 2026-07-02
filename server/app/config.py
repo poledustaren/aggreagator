@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     process_recency_days: int = 30          # окно недавности кандидатов-процессов
     process_freeze_idle_days: int = 7       # тишина ≥ N дней → процесс замораживается
 
+    # ── Обучение на смахиваниях («пежня») ────────────────────────────────
+    # Смахнул один item → похожие по эмбеддингу гасятся; новые похожие на ранее
+    # смахнутые — авто-dismiss на входе. Порог высокий: гасим только near-дубли.
+    junk_sim_threshold: float = 0.90        # cosine-похожесть ≥ порога → «пежня»
+    junk_lookback_days: int = 30            # окно «памяти» смахнутых для авто-dismiss
+    junk_learning_enabled: bool = True      # рубильник всей петли
+
 
 @lru_cache
 def get_settings() -> Settings:
