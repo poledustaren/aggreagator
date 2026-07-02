@@ -48,7 +48,9 @@ export function VisTimelineView({ entries, areas, onSelect, timelineRef }: VisTi
       group: entry.area_id ?? NO_AREA_GROUP,
       content: entry.title ?? '(без названия)',
       start: entry.start,
-      // open → рисуем до текущего момента с открытым концом
+      // Оконный режим (заданы from/to на сервере) отдаёт end ВСЕГДА заполненным —
+      // последнее сообщение процесса в окне, процесс формально конечен для вида.
+      // Без окна open по-прежнему может прийти с end=null → рисуем до «сейчас».
       end: entry.end ?? new Date().toISOString(),
       className: classNameForStatus(entry.status),
       title: `${entry.title ?? '(без названия)'} — ${entry.item_count} элементов`,

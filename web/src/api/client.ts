@@ -19,6 +19,7 @@ import type {
   ItemsQuery,
   Overview,
   ProcessDetail,
+  ProcessGraph,
   ProcessPage,
   ProcessTimeline,
   ProcessesQuery,
@@ -229,6 +230,11 @@ export function fetchProcess(id: string): Promise<ProcessDetail> {
 
 export function fetchProcessTimeline(from?: string, to?: string): Promise<ProcessTimeline> {
   return request<ProcessTimeline>('/processes/timeline', { query: { from, to } })
+}
+
+// Граф связей: LLM на лету (запрос может занимать несколько секунд), 503 если LLM выключен.
+export function fetchProcessGraph(from: string, to: string): Promise<ProcessGraph> {
+  return request<ProcessGraph>('/processes/graph', { query: { from, to } })
 }
 
 // ---------- Stats ----------

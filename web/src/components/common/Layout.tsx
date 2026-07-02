@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/rules', label: 'Правила' },
   { to: '/processes', label: 'Процессы' },
   { to: '/timeline', label: 'Таймлайн' },
+  { to: '/relations', label: 'Связи' },
   { to: '/stats', label: 'Статистика' },
   { to: '/settings', label: 'Настройки' },
 ]

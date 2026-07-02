@@ -11,6 +11,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { TimelinePage } from './pages/TimelinePage'
 import { StatsPage } from './pages/StatsPage'
 import { ProcessesPage } from './pages/ProcessesPage'
+import { RelationsPage } from './pages/RelationsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +81,14 @@ function App() {
               element={
                 <RequireSettings>
                   <TimelinePage />
+                </RequireSettings>
+              }
+            />
+            <Route
+              path="relations"
+              element={
+                <RequireSettings>
+                  <RelationsPage />
                 </RequireSettings>
               }
             />

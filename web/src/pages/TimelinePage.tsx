@@ -1,8 +1,12 @@
 /**
  * Экран «Таймлайн процессов»: горизонтальная временная шкала на vis-timeline,
  * где каждая полоса — процесс (start→end), сгруппированный по зоне.
- * Открытые процессы рисуются до текущего момента, замороженные — пунктиром,
- * завершённые — сплошной заливкой.
+ *
+ * Запрашиваем /processes/timeline С окном (from/to) — сервер в этом режиме
+ * отдаёт процессы ОКОННО-КОНЕЧНЫМИ: end = последнее сообщение процесса В ОКНЕ
+ * (даже для open — он не тянется до «сейчас», а формально завершается на виде).
+ * Пикер окна — тот же компонент, что на /relations (WindowPicker), дефолт —
+ * последние 7 дней. Смена окна перезапрашивает таймлайн.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -15,10 +19,13 @@ import { useAreas } from '../hooks/useAreas'
 import { VisTimelineView } from '../components/processes/VisTimelineView'
 import { ScaleControls } from '../components/processes/ScaleControls'
 import { ProcessDetailPanel } from '../components/processes/ProcessDetailPanel'
+import { WindowPicker, defaultWindow, type TimeWindow } from '../components/common/WindowPicker'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
 
 export function TimelinePage() {
-  const timelineResult = useProcessTimeline()
+  // Переименовано в timeWindow (не window), чтобы не затенять глобальный window.
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>(() => defaultWindow())
+  const timelineResult = useProcessTimeline(timeWindow.from, timeWindow.to)
   const areasResult = useAreas()
   const [searchParams] = useSearchParams()
   const highlightProcessId = searchParams.get('process')
@@ -27,6 +34,9 @@ export function TimelinePage() {
 
   const areas = areasResult.data ?? []
   const entries = timelineResult.data?.entries ?? []
+  // fetchStatus === 'paused': запрос ждёт восстановления сети (см. RelationsPage —
+  // тот же паттерн TanStack Query v5, где isPending остаётся true, а isLoading — false).
+  const isPaused = timelineResult.fetchStatus === 'paused' && timelineResult.isPending
 
   // Если пришли по ссылке ?process=<id> из карточки Item — сфокусируем и выделим полосу.
   // Зависим от самого ответа запроса (ссылка стабильна между рендерами), а не от
@@ -51,7 +61,15 @@ export function TimelinePage() {
         {entries.length > 0 && <ScaleControls timelineRef={timelineRef} />}
       </div>
 
-      {(timelineResult.isLoading || areasResult.isLoading) && <LoadingState label="Загружаем таймлайн..." />}
+      <WindowPicker value={timeWindow} onChange={setTimeWindow} />
+
+      {(timelineResult.isPending && !isPaused) || areasResult.isLoading ? (
+        <LoadingState label="Загружаем таймлайн..." />
+      ) : null}
+
+      {isPaused && (
+        <ErrorState message="Нет соединения с сервером — запрос ждёт восстановления сети." onRetry={() => timelineResult.refetch()} />
+      )}
 
       {timelineResult.isError && (
         <ErrorState
@@ -62,12 +80,12 @@ export function TimelinePage() {
         />
       )}
 
-      {!timelineResult.isLoading &&
+      {!timelineResult.isPending &&
         !timelineResult.isError &&
         !areasResult.isLoading &&
         entries.length === 0 && <EmptyState message="Процессов пока нет" />}
 
-      {!timelineResult.isLoading && !timelineResult.isError && !areasResult.isLoading && entries.length > 0 && (
+      {!timelineResult.isPending && !timelineResult.isError && !areasResult.isLoading && entries.length > 0 && (
         <VisTimelineView
           entries={entries}
           areas={areas}

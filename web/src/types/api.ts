@@ -208,6 +208,44 @@ export interface ProcessTimeline {
   entries: ProcessTimelineEntry[]
 }
 
+// ---------- Process graph (раздел «Связи») ----------
+
+// Тип связи между процессами — см. server/app/pipeline/relation_finder.py
+export type GraphRelation = 'same_entity' | 'causal' | 'follow_up' | 'same_project' | 'related'
+
+export interface GraphNode {
+  id: string
+  title: string | null
+  status: ProcessStatus
+  area_id: string | null
+  start: string
+  end: string
+  item_count: number
+  theme: string | null
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  relation: string // строка на сервере (GraphRelation — известные значения, но парсим как string)
+  reason: string
+  confidence: number
+}
+
+export interface GraphTheme {
+  name: string
+  process_ids: string[]
+}
+
+export interface ProcessGraph {
+  window_from: string | null
+  window_to: string | null
+  nodes: GraphNode[]
+  themes: GraphTheme[]
+  edges: GraphEdge[]
+  truncated: boolean
+}
+
 // ---------- Stats ----------
 
 export interface StatusCounts {
