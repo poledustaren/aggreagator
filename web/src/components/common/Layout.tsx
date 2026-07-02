@@ -5,7 +5,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Важное', end: true },
+  { to: '/', label: 'Сводка', end: true },
+  { to: '/feed', label: 'Лента' },
   { to: '/groups', label: 'Треды' },
   { to: '/gtd', label: 'GTD' },
   { to: '/rules', label: 'Правила' },

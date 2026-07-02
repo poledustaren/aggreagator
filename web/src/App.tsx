@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/common/Layout'
 import { RequireSettings } from './components/common/RequireSettings'
+import { DigestPage } from './pages/DigestPage'
 import { FeedPage } from './pages/FeedPage'
 import { GroupsPage } from './pages/GroupsPage'
 import { GtdPage } from './pages/GtdPage'
@@ -28,6 +29,14 @@ function App() {
           <Route element={<Layout />}>
             <Route
               index
+              element={
+                <RequireSettings>
+                  <DigestPage />
+                </RequireSettings>
+              }
+            />
+            <Route
+              path="feed"
               element={
                 <RequireSettings>
                   <FeedPage />
