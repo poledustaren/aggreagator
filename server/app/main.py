@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import (
     areas,
+    auth,
     devices,
     groups,
     ingest,
@@ -79,7 +80,7 @@ app.add_middleware(
 )
 
 for _module in (
-    devices, ingest, items, groups, areas, projects, rules, rule_suggestions, tags, processes, stats, search, themes
+    auth, devices, ingest, items, groups, areas, projects, rules, rule_suggestions, tags, processes, stats, search, themes
 ):
     app.include_router(_module.router, prefix="/v1")
 

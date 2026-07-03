@@ -153,6 +153,16 @@ export function fetchThemes(): Promise<ThemeList> {
   return request<ThemeList>('/themes')
 }
 
+/** Вход по паролю → Bearer-токен «веб-устройства» для всех /v1-запросов. */
+export async function loginWithPassword(password: string): Promise<string> {
+  const res = await request<{ token: string }>('/auth/login', {
+    method: 'POST',
+    body: { password },
+    skipAuth: true,
+  })
+  return res.token
+}
+
 export function patchItem(id: string, patch: ItemPatch): Promise<Item> {
   return request<Item>(`/items/${id}`, { method: 'PATCH', body: patch })
 }
