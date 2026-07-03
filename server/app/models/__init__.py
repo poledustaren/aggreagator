@@ -11,6 +11,7 @@ from app.models.entities import (
     Project,
     RawNotification,
     Rule,
+    Theme,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "Project",
     "RawNotification",
     "Rule",
+    "Theme",
 ]

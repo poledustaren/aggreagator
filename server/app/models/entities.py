@@ -186,3 +186,28 @@ class Process(Base):
     ended_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     centroid: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
+    # Тематика (persistent): к какой теме отнесён процесс. Ведётся инкрементально
+    # theme_linker'ом (attach/new), НЕ регенерится при открытии.
+    theme_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("theme.id", ondelete="SET NULL"))
+
+
+class Theme(Base):
+    """Тематика — узел дерева тем над процессами (2-4 уровня через parent_id).
+
+    Ведётся инкрементально: новый процесс → RAG по centroid тем → LLM решает
+    attach к существующей теме/подтеме или создать новую. Выводы сохраняются и
+    только дополняются (не перегенерируются каждый раз).
+    """
+
+    __tablename__ = "theme"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("theme.id", ondelete="SET NULL"))
+    summary: Mapped[str | None] = mapped_column(Text)
+    depth: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    member_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    centroid: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    last_activity_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

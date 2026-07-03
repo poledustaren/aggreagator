@@ -33,6 +33,7 @@ from app.pipeline.llm_provider import build_provider
 from app.pipeline.llm_router import LLMRouter
 from app.pipeline.process_linker import ProcessLinker
 from app.pipeline.rules_engine import RulesEngine
+from app.pipeline.theme_linker import ThemeLinker
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,14 @@ def get_process_linker() -> ProcessLinker | None:
     return ProcessLinker(embedder, llm, settings)
 
 
+def get_theme_linker() -> ThemeLinker | None:
+    """Линкер тематик (дерево тем над процессами). None → RAG выключен."""
+    settings = get_settings()
+    if build_embedder(settings) is None:
+        return None
+    return ThemeLinker(build_provider(settings), settings)
+
+
 async def run_pipeline_for_raw_notifications(raw_ids: list[uuid.UUID]) -> None:
     """Точка входа фоновой задачи: обработать список raw_notification.id."""
     if not raw_ids:
@@ -67,6 +76,7 @@ async def run_pipeline_for_raw_notifications(raw_ids: list[uuid.UUID]) -> None:
 
     classifier = get_classifier()
     linker = get_process_linker()
+    theme_linker = get_theme_linker()
     async with AsyncSessionLocal() as db:
         try:
             result = await db.execute(select(RawNotification).where(RawNotification.id.in_(raw_ids)))
@@ -95,7 +105,7 @@ async def run_pipeline_for_raw_notifications(raw_ids: list[uuid.UUID]) -> None:
             for raw in raw_rows:
                 if raw.item_id is not None:
                     continue  # уже обработан ранее (защита от повторного вызова)
-                await _process_one(db, classifier, linker, raw, ctx)
+                await _process_one(db, classifier, linker, theme_linker, raw, ctx)
 
             await db.commit()
         except Exception:
@@ -107,6 +117,7 @@ async def _process_one(
     db: AsyncSession,
     classifier: Classifier,
     linker: ProcessLinker | None,
+    theme_linker: ThemeLinker | None,
     raw: RawNotification,
     ctx: ClassifyContext,
 ) -> None:
@@ -171,6 +182,16 @@ async def _process_one(
             and await is_similar_to_dismissed(db, item.embedding, s.junk_sim_threshold, s.junk_lookback_days)
         ):
             item.status = ORMItemStatus.dismissed
+
+        # Тематики: относим процесс к теме инкрементально. Новый процесс (без темы) →
+        # LLM attach/new; уже привязанный → только обновляем «свежесть» темы.
+        if theme_linker is not None and item.process_id is not None:
+            proc = await db.get(Process, item.process_id)
+            if proc is not None:
+                if proc.theme_id is None:
+                    await theme_linker.assign(db, proc)
+                else:
+                    await theme_linker.touch(db, proc.theme_id)
 
 
 async def _upsert_group(db: AsyncSession, classification: ClassificationResult) -> Group | None:

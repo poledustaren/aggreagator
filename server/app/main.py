@@ -24,6 +24,7 @@ from app.api import (
     search,
     stats,
     tags,
+    themes,
 )
 from app.config import get_settings
 
@@ -78,7 +79,7 @@ app.add_middleware(
 )
 
 for _module in (
-    devices, ingest, items, groups, areas, projects, rules, rule_suggestions, tags, processes, stats, search
+    devices, ingest, items, groups, areas, projects, rules, rule_suggestions, tags, processes, stats, search, themes
 ):
     app.include_router(_module.router, prefix="/v1")
 
