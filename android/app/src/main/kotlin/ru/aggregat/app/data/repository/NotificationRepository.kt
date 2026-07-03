@@ -160,10 +160,12 @@ class NotificationRepository(
      * device_id + token локально. Вызывается при первом запуске или после
      * сброса токена (401).
      */
-    suspend fun registerDevice(baseUrl: String, deviceName: String): RegistrationResult {
+    suspend fun registerDevice(baseUrl: String, deviceName: String, password: String? = null): RegistrationResult {
         return try {
             val api = ApiClientFactory.create(baseUrl, settingsStore)
-            val response = api.registerDevice(DeviceRegisterRequest(deviceName = deviceName))
+            val response = api.registerDevice(
+                DeviceRegisterRequest(deviceName = deviceName, password = password?.takeIf { it.isNotBlank() }),
+            )
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null) {

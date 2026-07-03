@@ -15,6 +15,8 @@ data class DeviceRegisterRequest(
     val platform: String = "android",
     @SerialName("device_name") val deviceName: String,
     @SerialName("push_token") val pushToken: String? = null,
+    // Пароль доступа (WEB_PASSWORD на сервере). Обязателен, если сервер его требует.
+    val password: String? = null,
 )
 
 @Serializable

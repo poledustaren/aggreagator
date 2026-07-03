@@ -67,6 +67,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             ServerConfigCard(
                 state = state,
                 onBaseUrlChanged = viewModel::onBaseUrlChanged,
+                onPasswordChanged = viewModel::onPasswordChanged,
                 onRegister = viewModel::registerDevice,
                 onOpenPortal = openPortal,
             )
@@ -81,6 +82,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 private fun ServerConfigCard(
     state: SettingsUiState,
     onBaseUrlChanged: (String) -> Unit,
+    onPasswordChanged: (String) -> Unit,
     onRegister: () -> Unit,
     onOpenPortal: () -> Unit,
 ) {
@@ -95,6 +97,14 @@ private fun ServerConfigCard(
                 onValueChange = onBaseUrlChanged,
                 label = { Text("https://your-server.example.com") },
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = state.passwordInput,
+                onValueChange = onPasswordChanged,
+                label = { Text("Пароль доступа") },
+                singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
             )
 

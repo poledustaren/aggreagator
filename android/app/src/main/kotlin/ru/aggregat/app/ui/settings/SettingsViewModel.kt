@@ -22,6 +22,7 @@ enum class RegistrationState {
 
 data class SettingsUiState(
     val baseUrlInput: String = "",
+    val passwordInput: String = "",
     val registrationState: RegistrationState = RegistrationState.UNKNOWN,
     val errorMessage: String? = null,
     val pendingCount: Int = 0,
@@ -62,6 +63,10 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(baseUrlInput = value, errorMessage = null)
     }
 
+    fun onPasswordChanged(value: String) {
+        _uiState.value = _uiState.value.copy(passwordInput = value, errorMessage = null)
+    }
+
     /**
      * Регистрирует устройство на сервере с введённым base URL. При успехе
      * сохраняет device_id/token и переводит состояние в REGISTERED.
@@ -77,7 +82,8 @@ class SettingsViewModel(
 
         viewModelScope.launch {
             val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}".trim().ifBlank { "Android device" }
-            when (val result = repository.registerDevice(url, deviceName)) {
+            val password = _uiState.value.passwordInput
+            when (val result = repository.registerDevice(url, deviceName, password)) {
                 RegistrationResult.Success -> {
                     _uiState.value = _uiState.value.copy(
                         registrationState = RegistrationState.REGISTERED,
