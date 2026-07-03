@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_device
 from app.config import get_settings
 from app.db import get_db
-from app.models import Device, Item
+from app.models import Device, Item, Process
 from app.models.entities import ItemStatus as ORMItemStatus
 from app.schemas.common import ItemStatus
 from app.schemas.item import Item as ItemSchema
@@ -48,6 +48,7 @@ async def list_items(
     importance_min: int | None = Query(default=None, ge=0, le=100),
     area_id: uuid.UUID | None = Query(default=None),
     project_id: uuid.UUID | None = Query(default=None),
+    theme_id: uuid.UUID | None = Query(default=None),
     tag: str | None = Query(default=None),
     status_filter: ItemStatus | None = Query(default=None, alias="status"),
     from_: datetime | None = Query(default=None, alias="from"),
@@ -64,6 +65,9 @@ async def list_items(
         conditions.append(Item.area_id == area_id)
     if project_id is not None:
         conditions.append(Item.project_id == project_id)
+    if theme_id is not None:
+        # Сообщения темы = сообщения процессов, привязанных к этой теме.
+        conditions.append(Item.process_id.in_(select(Process.id).where(Process.theme_id == theme_id)))
     if tag is not None:
         conditions.append(Item.tags.any(tag))
     if status_filter is not None:

@@ -32,6 +32,7 @@ import type {
   SourceStat,
   StatsBucket,
   StatsTimeline,
+  ThemeList,
 } from '../types/api'
 
 export class UnauthorizedError extends Error {
@@ -146,6 +147,10 @@ export function fetchItems(query: ItemsQuery): Promise<ItemPage> {
 
 export function fetchItem(id: string): Promise<Item> {
   return request<Item>(`/items/${id}`)
+}
+
+export function fetchThemes(): Promise<ThemeList> {
+  return request<ThemeList>('/themes')
 }
 
 export function patchItem(id: string, patch: ItemPatch): Promise<Item> {

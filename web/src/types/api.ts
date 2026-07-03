@@ -64,11 +64,30 @@ export interface ItemsQuery {
   importance_min?: number
   area_id?: string
   project_id?: string
+  theme_id?: string
   tag?: string
   status?: ItemStatus
   from?: string
   cursor?: string
   limit?: number
+}
+
+// ---------- Themes (тематики) ----------
+
+export interface ThemeNode {
+  id: string
+  name: string
+  parent_id: string | null
+  depth: number
+  summary: string | null
+  last_activity_at: string
+  inbox_count: number
+  max_importance: number
+  process_count: number
+}
+
+export interface ThemeList {
+  themes: ThemeNode[]
 }
 
 // ---------- Groups ----------
