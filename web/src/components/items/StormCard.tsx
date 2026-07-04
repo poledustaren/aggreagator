@@ -10,7 +10,7 @@
 import { useRef, useState } from 'react'
 import type { Area, Item, Project } from '../../types/api'
 import { areaColor, hexRgba, wavePath, weather } from '../../lib/weather'
-import { formatAbs, formatAgo } from '../../lib/datetime'
+import { formatAbs, formatAgo, formatDue, dueUrgency } from '../../lib/datetime'
 import { SnoozeMenu } from './SnoozeMenu'
 import { ReassignMenu } from './ReassignMenu'
 
@@ -172,6 +172,7 @@ export function StormCard({
 
           {/* Чипы: источник(и), зона (клик — сменить), действие. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 10 }}>
+            {item.due_at && <DueChip due={item.due_at} kind={item.due_kind} />}
             {item.source_apps.map((app) => (
               <span
                 key={app}
@@ -259,4 +260,27 @@ export function StormCard({
 
 function Dot() {
   return <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--ink3)', flex: 'none' }} />
+}
+
+const DUE_KIND_ICON: Record<string, string> = { deadline: '⏳', event: '📅', payment: '₽' }
+
+// Чип срока: цвет по «горению» (просрочено/сегодня — красный, дальше — спокойнее).
+function DueChip({ due, kind }: { due: string; kind?: string | null }) {
+  const u = dueUrgency(due)
+  const color = u >= 100 ? '#f2603f' : u >= 78 ? '#e0703f' : u >= 42 ? '#e0a95a' : 'var(--ink2)'
+  const icon = (kind && DUE_KIND_ICON[kind]) || '⏰'
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 8,
+        font: "600 11px/1 'Instrument Sans',sans-serif",
+        background: u >= 42 ? hexRgba(u >= 100 ? '#f2603f' : u >= 78 ? '#e0703f' : '#e0a95a', 0.15) : 'var(--surface2)',
+        color,
+      }}
+      title={new Date(due).toLocaleString('ru-RU')}
+    >
+      <span style={{ fontSize: 10 }}>{icon}</span>
+      {formatDue(due)}
+    </span>
+  )
 }

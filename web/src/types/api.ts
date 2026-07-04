@@ -43,6 +43,8 @@ export interface Item {
   classified_by: ClassifiedBy
   confidence: number // 0-1
   snoozed_until: string | null // date-time
+  due_at: string | null // date-time — срок/дедлайн, вычлененный LLM (H9)
+  due_kind: 'deadline' | 'event' | 'payment' | null
   created_at: string
   updated_at: string
 }

@@ -145,6 +145,10 @@ async def _process_one(
     if dup is not None:
         raw.item_id = dup.id
         dup.updated_at = _utc_now()
+        # Свежий повтор мог принести срок, которого у оригинала не было — подхватим.
+        if dup.due_at is None and classification.due_at is not None:
+            dup.due_at = classification.due_at
+            dup.due_kind = classification.due_kind
         return
 
     group = await _upsert_group(db, classification)
@@ -161,6 +165,8 @@ async def _process_one(
         source_apps=[raw.source_app],
         classified_by=classification.classified_by,
         confidence=classification.confidence,
+        due_at=classification.due_at,
+        due_kind=classification.due_kind,
     )
     db.add(item)
     await db.flush()  # получить item.id

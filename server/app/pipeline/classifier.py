@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from app.schemas.common import ClassifiedBy
@@ -91,6 +92,11 @@ class ClassificationResult:
     confidence: float | None
     model: str | None = None  # напр. "rule:<id>" / "claude-haiku-4-5" — для таблицы classification
     raw_output: dict | None = None
+    # Срок/дедлайн, вычлененный LLM из текста уведомления (H9). due_at — абсолютный
+    # момент (относительные «завтра»/«до 20 июля» разрешаются от posted_at на стороне
+    # LLM), due_kind — тип: "deadline" | "event" | "payment" | None.
+    due_at: datetime | None = None
+    due_kind: str | None = None
 
 
 @runtime_checkable

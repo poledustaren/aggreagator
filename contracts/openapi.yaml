@@ -252,6 +252,8 @@ components:
         classified_by: { type: string, enum: [rules, llm, manual], description: какой слой решил }
         confidence: { type: number, format: float, minimum: 0, maximum: 1 }
         snoozed_until: { type: string, format: date-time, nullable: true }
+        due_at: { type: string, format: date-time, nullable: true, description: срок/дедлайн, вычлененный LLM (H9) }
+        due_kind: { type: string, enum: [deadline, event, payment], nullable: true, description: тип срока }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 

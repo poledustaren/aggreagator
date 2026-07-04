@@ -12,7 +12,10 @@ import { useInfiniteScrollTrigger } from '../hooks/useInfiniteScrollTrigger'
 import { StormCard } from '../components/items/StormCard'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
 import { hexRgba, weather } from '../lib/weather'
+import { AXIS_META, axisScore, type Axis } from '../lib/axes'
 import type { Item, ItemsQuery } from '../types/api'
+
+const AXES: Axis[] = ['importance', 'urgency', 'stakes', 'action']
 
 // Фильтр по стихиям (rank погоды). 'calm' — Штиль+Рябь (0–40).
 type SevFilter = 'all' | 'hurricane' | 'storm' | 'waves' | 'calm'
@@ -34,6 +37,7 @@ function matchSev(item: Item, key: SevFilter): boolean {
 
 export function FeedPage() {
   const [sev, setSev] = useState<SevFilter>('all')
+  const [axis, setAxis] = useState<Axis>('importance')
   const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 50 }), [])
 
   const itemsResult = useItems(query)
@@ -47,7 +51,11 @@ export function FeedPage() {
   )
 
   const allItems = (itemsResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox')
-  const items = allItems.filter((i) => matchSev(i, sev))
+  const items = useMemo(() => {
+    const filtered = allItems.filter((i) => matchSev(i, sev))
+    if (axis === 'importance') return filtered
+    return [...filtered].sort((a, b) => axisScore(b, axis) - axisScore(a, axis) || b.importance - a.importance)
+  }, [allItems, sev, axis])
 
   const handlers = (item: Item) => ({
     item,
@@ -86,6 +94,29 @@ export function FeedPage() {
             >
               {f.label}
               <span className="font-mono" style={{ fontSize: 11, opacity: 0.7 }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Сортировка по осям: важность / срок / ставки / действие. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+        <span className="font-mono" style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink3)' }}>Сортировка</span>
+        {AXES.map((a) => {
+          const active = axis === a
+          const c = AXIS_META[a].color
+          return (
+            <button
+              key={a}
+              onClick={() => setAxis(a)}
+              style={{
+                padding: '6px 12px', borderRadius: 9, cursor: 'pointer', border: 'none',
+                background: active ? hexRgba(c, 0.16) : 'var(--surface)',
+                color: active ? c : 'var(--ink2)',
+                font: "600 12px/1 'Instrument Sans',sans-serif",
+              }}
+            >
+              {AXIS_META[a].label}
             </button>
           )
         })}

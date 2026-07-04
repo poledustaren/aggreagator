@@ -24,6 +24,8 @@ class Item(BaseModel):
     classified_by: ClassifiedBy | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
     snoozed_until: datetime | None = None
+    due_at: datetime | None = None
+    due_kind: str | None = None
     created_at: datetime
     updated_at: datetime
 

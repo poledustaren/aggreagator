@@ -45,3 +45,43 @@ export function formatAbs(iso: string | null | undefined, now: Date = new Date()
   if (d.toDateString() === yest.toDateString()) return `вчера ${time}`
   return `${formatAbsShort(iso, now)} ${time}`
 }
+
+/**
+ * Метка срока (due_at) для чипа: «просрочено», «сегодня 18:00», «завтра», «через
+ * 3 дн», «до 20 июл». Прошедшее — «просрочено N дн».
+ */
+export function formatDue(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const ms = d.getTime() - now.getTime()
+  const day = Math.round(ms / 86_400_000)
+  const time = `${d.getHours()}:${pad(d.getMinutes())}`
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+  if (ms < 0) {
+    const overdue = Math.max(1, Math.abs(day))
+    return day === 0 ? 'просрочено' : `просрочено ${overdue} дн`
+  }
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) return hasTime ? `сегодня ${time}` : 'сегодня'
+  const tom = new Date(now)
+  tom.setDate(now.getDate() + 1)
+  if (d.toDateString() === tom.toDateString()) return hasTime ? `завтра ${time}` : 'завтра'
+  if (day <= 7) return `через ${day} дн`
+  return `до ${formatAbsShort(iso, now)}`
+}
+
+/**
+ * Насколько срок «горит» прямо сейчас, 0–100 (для оси срочности и цвета чипа).
+ * Просрочено = 100, сегодня ≈ 90, спадает к нулю за ~14 дней.
+ */
+export function dueUrgency(iso: string | null | undefined, now: Date = new Date()): number {
+  if (!iso) return 0
+  const days = (new Date(iso).getTime() - now.getTime()) / 86_400_000
+  if (days <= 0) return 100
+  if (days < 1) return 90
+  if (days < 2) return 78
+  if (days < 4) return 60
+  if (days < 7) return 42
+  if (days < 14) return 24
+  return 10
+}

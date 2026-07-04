@@ -117,6 +117,9 @@ class Item(Base):
     classified_by: Mapped[ClassifiedBy | None] = mapped_column(classified_by_pg)
     confidence: Mapped[float | None] = mapped_column(REAL, CheckConstraint("confidence BETWEEN 0 AND 1"))
     snoozed_until: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Срок/дедлайн, вычлененный LLM из текста (H9, миграция 0005): момент + тип.
+    due_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    due_kind: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
