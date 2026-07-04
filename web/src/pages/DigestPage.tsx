@@ -1,15 +1,15 @@
 /**
- * Главная — «Морская сводка». Герой (балл шторма) + два режима (в localStorage):
- *  - «Темы»: дерево тематик (persistent, ведётся LLM инкрементально), раскрываемое.
- *  - «Зоны»: inbox-элементы, сгруппированные по Area.
- * Карточки — StormCard (свайп: вправо готово, влево скрыть). Сортировка по
- * важности/новизне. Балл и стихии считаются из инбокса на клиенте.
+ * Главная — «Морская сводка». Герой (балл шторма) + выбор ГРУППИРОВКИ и ФИЛЬТРА.
+ * Группировки: Актуальность (важность+срочность), Сроки (по дедлайнам), Темы
+ * (дерево тематик), Зоны (по Area), Процессы (по процессу-истории, важность H7).
+ * Фильтр — по стихиям (важности). Карточки — StormCard (свайп готово/скрыть).
  */
 
 import { useMemo, useState } from 'react'
 import { useItems, usePatchItem } from '../hooks/useItems'
 import { useAreas } from '../hooks/useAreas'
 import { useProjects } from '../hooks/useProjects'
+import { useProcesses } from '../hooks/useProcesses'
 import {
   useThemes,
   buildThemeTree,
@@ -21,12 +21,38 @@ import { StormCard } from '../components/items/StormCard'
 import { SeaHero } from '../components/digest/SeaHero'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
 import { areaColor, hexRgba, weather } from '../lib/weather'
+import { type Group, groupByActuality, groupByDeadline, groupByProcess } from '../lib/grouping'
 import type { Area, Item, ItemsQuery } from '../types/api'
 
-type Mode = 'themes' | 'areas'
+type Mode = 'actuality' | 'deadlines' | 'themes' | 'areas' | 'processes'
+type Sev = 'all' | 'hurricane' | 'storm' | 'waves' | 'calm'
 
 const MODE_KEY = 'aggregat.digest.mode'
 const SORT_KEY = 'aggregat.digest.sort'
+const SEV_KEY = 'aggregat.digest.sev'
+
+const GROUPINGS: { value: Mode; label: string }[] = [
+  { value: 'actuality', label: 'Актуальность' },
+  { value: 'deadlines', label: 'Сроки' },
+  { value: 'themes', label: 'Темы' },
+  { value: 'areas', label: 'Зоны' },
+  { value: 'processes', label: 'Процессы' },
+]
+
+const SEV_FILTERS: { key: Sev; label: string; color: string }[] = [
+  { key: 'all', label: 'Всё', color: '#37c0d4' },
+  { key: 'hurricane', label: 'Ураган', color: '#f2603f' },
+  { key: 'storm', label: 'Шторм', color: '#7b6cf2' },
+  { key: 'waves', label: 'Волны', color: '#3d86e0' },
+  { key: 'calm', label: 'Спокойно', color: '#24b3c9' },
+]
+
+function matchSev(item: Item, key: Sev): boolean {
+  if (key === 'all') return true
+  const rank = weather(item.importance).rank
+  if (key === 'calm') return rank <= 1
+  return rank === { hurricane: 4, storm: 3, waves: 2 }[key]
+}
 
 function usePersisted<T extends string>(key: string, fallback: T): [T, (v: T) => void] {
   const [value, setValue] = useState<T>(() => (localStorage.getItem(key) as T) || fallback)
@@ -37,39 +63,20 @@ function usePersisted<T extends string>(key: string, fallback: T): [T, (v: T) =>
   return [value, set]
 }
 
-// Сегмент-переключатель в стиле funufunu (активный — заливка accent).
-function ModeSeg<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (v: T) => void
-}) {
+function Chip({ active, color, onClick, children }: { active: boolean; color: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
-      {options.map((o) => {
-        const active = value === o.value
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            style={{
-              font: "600 12px/1 'Instrument Sans',sans-serif",
-              padding: '9px 18px',
-              borderRadius: 11,
-              border: 'none',
-              cursor: 'pointer',
-              background: active ? 'var(--accent)' : 'var(--surface)',
-              color: active ? '#07141c' : 'var(--ink2)',
-            }}
-          >
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999,
+        cursor: 'pointer', border: 'none',
+        background: active ? hexRgba(color, 0.16) : 'var(--surface)',
+        color: active ? color : 'var(--ink2)',
+        font: "600 12px/1 'Instrument Sans',sans-serif",
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -92,16 +99,17 @@ function useCardActions(query: ItemsQuery) {
 }
 
 export function DigestPage() {
-  const [mode, setMode] = usePersisted<Mode>(MODE_KEY, 'themes')
+  const [mode, setMode] = usePersisted<Mode>(MODE_KEY, 'actuality')
   const [sort, setSort] = usePersisted<ThemeSort>(SORT_KEY, 'importance')
+  const [sev, setSev] = usePersisted<Sev>(SEV_KEY, 'all')
 
-  // Общий срез инбокса для героя (балл шторма + стихии).
   const heroQuery = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 200 }), [])
   const heroResult = useItems(heroQuery)
   const heroItems = useMemo(
     () => (heroResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox'),
     [heroResult.data],
   )
+  const filtered = useMemo(() => heroItems.filter((i) => matchSev(i, sev)), [heroItems, sev])
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '16px 16px 90px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -112,28 +120,107 @@ export function DigestPage() {
 
       <SeaHero items={heroItems} />
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' }}>
-        <ModeSeg
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'themes', label: 'Темы' },
-            { value: 'areas', label: 'Зоны' },
-          ]}
-        />
-        <ModeSeg
-          value={sort}
-          onChange={setSort}
-          options={[
-            { value: 'importance', label: 'Важность' },
-            { value: 'recency', label: 'Новизна' },
-          ]}
-        />
+      {/* Управление: как группировать + (для плоских режимов) фильтр по стихиям. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink3)' }}>Группировка</span>
+          {GROUPINGS.map((g) => (
+            <Chip key={g.value} active={mode === g.value} color="#37c0d4" onClick={() => setMode(g.value)}>{g.label}</Chip>
+          ))}
+        </div>
+        {mode === 'themes' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink3)' }}>Сортировка</span>
+            <Chip active={sort === 'importance'} color="#3d86e0" onClick={() => setSort('importance')}>Важность</Chip>
+            <Chip active={sort === 'recency'} color="#3d86e0" onClick={() => setSort('recency')}>Новизна</Chip>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink3)' }}>Фильтр</span>
+            {SEV_FILTERS.map((f) => {
+              const count = heroItems.filter((i) => matchSev(i, f.key)).length
+              if (count === 0 && f.key !== 'all' && sev !== f.key) return null
+              return (
+                <Chip key={f.key} active={sev === f.key} color={f.color} onClick={() => setSev(f.key)}>
+                  {f.label}<span className="font-mono" style={{ fontSize: 11, opacity: 0.7 }}>{count}</span>
+                </Chip>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      {mode === 'themes' ? <ThemesDigest sort={sort} /> : <AreasDigest sort={sort} heroItems={heroItems} loading={heroResult.isLoading} error={heroResult.isError} />}
+      {mode === 'themes' ? (
+        <ThemesDigest sort={sort} />
+      ) : (
+        <FlatGrouped mode={mode} items={filtered} loading={heroResult.isLoading} error={heroResult.isError} empty={heroItems.length === 0} />
+      )}
     </div>
   )
+}
+
+// ─────────────────── Плоские группировки (актуальность/сроки/зоны/процессы) ───────────────────
+
+function FlatGrouped({ mode, items, loading, error, empty }: { mode: Mode; items: Item[]; loading: boolean; error: boolean; empty: boolean }) {
+  const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 200 }), [])
+  const { areas, handlers } = useCardActions(query)
+  // Процессы нужны только для режима группировки по процессам (карта id→важность/имя).
+  const procResult = useProcesses({ limit: 200 })
+  const processes = procResult.data?.pages.flatMap((p) => p.processes) ?? []
+
+  const groups = useMemo<Group[]>(() => {
+    if (mode === 'deadlines') return groupByDeadline(items)
+    if (mode === 'areas') return groupByAreaGroups(items, areas)
+    if (mode === 'processes') return groupByProcess(items, processes)
+    return groupByActuality(items)
+  }, [mode, items, areas, processes])
+
+  if (loading) return <LoadingState label="Собираем сводку..." />
+  if (error) return <ErrorState message="Не удалось загрузить сводку" />
+  if (empty) return <EmptyState message="Всё разобрано 🎉 Ничего важного в очереди." />
+  if (groups.length === 0) return <EmptyState message="Штиль — под фильтр ничего не попало." />
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {groups.map((group) => (
+        <section key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: group.color, flex: 'none' }} />
+            <h3 className="font-mono" style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: '.09em', textTransform: 'uppercase', color: group.color }}>
+              {group.label}
+            </h3>
+            <span className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)' }}>{group.items.length}</span>
+            {group.hint && <span className="font-mono" style={{ fontSize: 10, color: 'var(--ink3)', opacity: 0.8 }}>· {group.hint}</span>}
+          </div>
+          {group.items.map((item) => (
+            <StormCard key={item.id} {...handlers(item)} />
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+// Группировка по зонам в общий вид Group (важнейшая зона — выше).
+function groupByAreaGroups(items: Item[], areas: Area[]): Group[] {
+  const byId = new Map<string, Item[]>()
+  const NONE = '∅'
+  for (const item of items) {
+    const key = item.area_id ?? NONE
+    ;(byId.get(key) ?? byId.set(key, []).get(key)!).push(item)
+  }
+  const groups: Group[] = []
+  for (const [key, its] of byId) {
+    const area = areas.find((a) => a.id === key) ?? null
+    its.sort((a, b) => b.importance - a.importance)
+    groups.push({
+      key,
+      label: area?.name ?? 'Без зоны',
+      color: area ? areaColor(area.name, area.color) : '#8098a2',
+      items: its,
+    })
+  }
+  return groups.sort((a, b) => Math.max(...b.items.map((i) => i.importance), 0) - Math.max(...a.items.map((i) => i.importance), 0))
 }
 
 // ─────────────────────────── Режим «Темы» ───────────────────────────
@@ -213,69 +300,6 @@ function ThemeItems({ themeId }: { themeId: string }) {
       {items.map((item) => (
         <StormCard key={item.id} {...handlers(item)} />
       ))}
-    </div>
-  )
-}
-
-// ─────────────────────────── Режим «Зоны» ───────────────────────────
-
-interface AreaGroup {
-  key: string
-  area: Area | null
-  items: Item[]
-}
-
-function groupByArea(items: Item[], areas: Area[], sort: ThemeSort): AreaGroup[] {
-  const byId = new Map<string, AreaGroup>()
-  const NONE = '∅'
-  for (const item of items) {
-    const key = item.area_id ?? NONE
-    if (!byId.has(key)) byId.set(key, { key, area: areas.find((a) => a.id === item.area_id) ?? null, items: [] })
-    byId.get(key)!.items.push(item)
-  }
-  const groups = [...byId.values()]
-  for (const g of groups) {
-    g.items.sort((a, b) =>
-      sort === 'importance'
-        ? b.importance - a.importance
-        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )
-  }
-  const score = (g: AreaGroup) =>
-    sort === 'importance'
-      ? Math.max(...g.items.map((i) => i.importance), 0)
-      : Math.max(...g.items.map((i) => new Date(i.created_at).getTime()), 0)
-  return groups.sort((a, b) => score(b) - score(a))
-}
-
-function AreasDigest({ sort, heroItems, loading, error }: { sort: ThemeSort; heroItems: Item[]; loading: boolean; error: boolean }) {
-  const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 200 }), [])
-  const { areas, handlers } = useCardActions(query)
-  const groups = useMemo(() => groupByArea(heroItems, areas, sort), [heroItems, areas, sort])
-
-  if (loading) return <LoadingState label="Собираем сводку..." />
-  if (error) return <ErrorState message="Не удалось загрузить сводку" />
-  if (heroItems.length === 0) return <EmptyState message="Всё разобрано 🎉 Ничего важного в очереди." />
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {groups.map((group) => {
-        const color = group.area ? areaColor(group.area.name, group.area.color) : '#8098a2'
-        return (
-          <section key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
-              <h3 className="font-mono" style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: '.09em', textTransform: 'uppercase', color }}>
-                {group.area?.name ?? 'Без зоны'}
-              </h3>
-              <span className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)' }}>{group.items.length}</span>
-            </div>
-            {group.items.map((item) => (
-              <StormCard key={item.id} {...handlers(item)} />
-            ))}
-          </section>
-        )
-      })}
     </div>
   )
 }
