@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a1620;--surface:#122935;--surface2:#173340;--line:rgba(130,190,205,.12);--ink:#e9f3f6;--ink2:#9db2bb;--ink3:#65808c;--accent:#37c0d4;--shadow-card:0 14px 30px -18px rgba(0,8,16,.65)}
+</style>
+</helmet>
+<div style="position:relative;display:flex;gap:12px;padding:14px 15px 14px 16px;background:var(--surface);border-radius:18px;box-shadow:var(--shadow-card);overflow:hidden">
+  <div style="position:absolute;left:0;top:0;bottom:0;width:4px;background:{{item.sevColor}}"></div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font:700 10.5px/1 'JetBrains Mono',monospace;color:{{item.sevColor}};letter-spacing:.03em;text-transform:uppercase">{{item.weather.label}}</span>
+          <span style="width:3px;height:3px;border-radius:50%;background:var(--ink3);flex:none"></span>
+          <span style="font:400 10.5px/1 'JetBrains Mono',monospace;color:var(--ink3)">{{item.ago}}</span>
+        </div>
+        <h4 style="margin:0;font:600 15px/1.25 'Instrument Sans',sans-serif;color:var(--ink);text-wrap:pretty">{{item.t}}</h4>
+        <p style="margin:3px 0 0;font:400 12.5px/1.42 'Instrument Sans',sans-serif;color:var(--ink2);text-wrap:pretty">{{item.s}}</p>
+      </div>
+      <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;width:50px;padding-top:2px">
+        <div style="font:700 21px/1 'JetBrains Mono',monospace;color:{{item.sevColor}}">{{item.imp}}</div>
+        <svg width="46" height="16" viewBox="0 0 46 16" style="display:block;overflow:visible">
+          <path d="{{item.wave}}" fill="none" stroke="{{item.sevColor}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".9"></path>
+        </svg>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px">
+      <span style="display:inline-flex;align-items:center;font:500 11px/1 'Instrument Sans',sans-serif;color:var(--ink2);background:var(--surface2);padding:4px 9px;border-radius:8px">{{item.src}}</span>
+      <span style="display:inline-flex;align-items:center;gap:5px;font:500 11px/1 'Instrument Sans',sans-serif;padding:4px 9px;border-radius:8px;background:{{item.area.tint}};color:{{item.area.color}}">
+        <span style="width:6px;height:6px;border-radius:50%;background:{{item.area.color}}"></span>{{item.area.name}}
+      </span>
+      <sc-if value="{{item.hasAction}}" hint-placeholder-val="{{ true }}">
+        <span style="font:600 11px/1.2 'Instrument Sans',sans-serif;color:var(--accent)">→ {{item.action}}</span>
+      </sc-if>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:11px">
+      <button onClick="{{item.onDone}}" style="flex:1;font:600 12px/1 'Instrument Sans',sans-serif;color:#07141c;background:var(--accent);border:none;padding:9px;border-radius:10px;cursor:pointer">Готово</button>
+      <button onClick="{{item.onSnooze}}" style="font:500 12px/1 'Instrument Sans',sans-serif;color:var(--ink2);background:var(--surface2);border:none;padding:9px 13px;border-radius:10px;cursor:pointer">Отложить</button>
+      <button onClick="{{item.onSkip}}" style="font:500 12px/1 'Instrument Sans',sans-serif;color:var(--ink3);background:transparent;border:none;padding:9px 13px;border-radius:10px;cursor:pointer">Скрыть</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:372,&quot;height&quot;:170},&quot;item&quot;:{&quot;editor&quot;:null}}"></script>
+</body>
+</html>

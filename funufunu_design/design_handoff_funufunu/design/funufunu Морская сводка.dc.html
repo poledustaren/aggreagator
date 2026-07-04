@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:#c3cfd4;font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+:root{--bg:#0a1620;--bg2:#0d1e28;--surface:#122935;--surface2:#173340;--line:rgba(130,190,205,.12);--ink:#e9f3f6;--ink2:#9db2bb;--ink3:#65808c;--accent:#37c0d4;--accent2:#3d86e0;--glow:rgba(55,192,212,.22);--shadow-card:0 14px 30px -18px rgba(0,8,16,.65)}
+[data-theme="light"]{--bg:#e8eff2;--bg2:#dfe9ec;--surface:#ffffff;--surface2:#eef5f7;--line:rgba(20,60,80,.10);--ink:#0c1c26;--ink2:#4a6470;--ink3:#8098a2;--accent:#0f97b0;--accent2:#2a6fdb;--glow:rgba(15,151,176,.16);--shadow-card:0 12px 26px -16px rgba(30,60,80,.14)}
+@keyframes drift{from{transform:translateX(-9%)}to{transform:translateX(9%)}}
+@keyframes drift2{from{transform:translateX(7%)}to{transform:translateX(-11%)}}
+@keyframes shimmer{from{background-position:0 0}to{background-position:120px 0}}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+</style>
+</helmet>
+<div style="min-height:100%;display:flex;flex-direction:column;align-items:center;padding:22px 16px 44px">
+  <div style="width:100%;max-width:1180px;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:11px">
+      <div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(150deg,#37c0d4,#2a6fdb);display:flex;align-items:center;justify-content:center;box-shadow:0 5px 16px rgba(42,111,219,.42)">
+        <svg width="21" height="21" viewBox="0 0 20 20"><path d="M2 12 q3 -4 5 0 t5 0 t5 0" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"></path><path d="M2 7 q3 -3 5 0 t5 0 t5 0" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" opacity=".55"></path></svg>
+      </div>
+      <div>
+        <div style="font:700 17px/1 'Bricolage Grotesque',sans-serif;color:#0c1c26;letter-spacing:.01em">funufunu</div>
+        <div style="font:500 11px/1.2 'JetBrains Mono',monospace;color:#5a6f78;margin-top:2px">важность = погода на море</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="display:flex;background:#fff;border-radius:11px;padding:3px;box-shadow:0 3px 12px rgba(20,50,70,.10)">
+        <button onClick="{{ setPhone }}" style="{{ seg.phone }}">Телефон</button>
+        <button onClick="{{ setDesktop }}" style="{{ seg.desktop }}">Десктоп</button>
+      </div>
+      <button onClick="{{ toggleTheme }}" style="display:flex;align-items:center;gap:8px;background:#fff;border:none;border-radius:11px;padding:8px 13px;box-shadow:0 3px 12px rgba(20,50,70,.10);cursor:pointer;font:600 12px/1 'Instrument Sans',sans-serif;color:#0c1c26"><span style="font-size:13px">{{ themeIcon }}</span>{{ themeLabel }}</button>
+    </div>
+  </div>
+
+  <div style="position:relative;width:{{ frame.w }};height:{{ frame.h }};background:{{ frame.bg }};border:{{ frame.border }};border-radius:{{ frame.radius }};box-shadow:0 34px 76px -22px rgba(6,20,30,.6);transition:width .4s cubic-bezier(.4,0,.2,1),height .4s cubic-bezier(.4,0,.2,1)">
+    <div data-theme="{{ themeName }}" style="position:relative;width:100%;height:100%;background:var(--bg);border-radius:{{ frame.inner }};overflow:hidden;display:flex;flex-direction:column;{{ accentVars }}">
+
+      <div style="display:{{ ui.deskShow }};align-items:center;gap:8px;padding:11px 15px;background:var(--bg2);flex:none">
+        <span style="width:11px;height:11px;border-radius:50%;background:#f2603f"></span>
+        <span style="width:11px;height:11px;border-radius:50%;background:#e0a95a"></span>
+        <span style="width:11px;height:11px;border-radius:50%;background:#3fbf8f"></span>
+        <div style="margin-left:14px;flex:1;max-width:340px;background:var(--surface);border-radius:8px;padding:6px 12px;font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3)">funufunu.local / {{ screenSlug }}</div>
+      </div>
+
+      <div style="display:{{ ui.phoneShow }};flex-direction:column;flex:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 22px 2px;font:600 12px/1 'JetBrains Mono',monospace;color:var(--ink2)">
+          <span>9:41</span>
+          <span style="width:17px;height:9px;border:1.4px solid var(--ink2);border-radius:3px"></span>
+        </div>
+        <div style="padding:9px 20px 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-bottom:5px">ЧТ · 3 ИЮЛЯ · 14:07</div>
+            <h1 style="margin:0;font:700 25px/1.02 'Bricolage Grotesque',sans-serif;color:var(--ink)">{{ screenTitle }}</h1>
+          </div>
+          <span style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--accent);padding-bottom:3px">{{ clearedCount }} разобрано</span>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex">
+        <nav style="display:{{ ui.siderailShow }};flex-direction:column;width:212px;flex:none;background:var(--bg2);padding:16px 12px;gap:3px">
+          <div style="padding:6px 10px 16px;font:700 18px/1 'Bricolage Grotesque',sans-serif;color:var(--ink)">funufunu</div>
+          <button onClick="{{ go.digest }}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border:none;border-radius:10px;cursor:pointer;background:{{ nav.digest.bg }};text-align:left"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex:none"><circle cx="10" cy="10" r="7" stroke="{{ nav.digest.c }}" stroke-width="1.5"></circle><path d="M13 7 L11.2 11.2 L7 13 L8.8 8.8 Z" fill="{{ nav.digest.c }}"></path></svg><span style="font:600 13px/1 'Instrument Sans',sans-serif;color:{{ nav.digest.c }}">Сводка</span></button>
+          <button onClick="{{ go.feed }}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border:none;border-radius:10px;cursor:pointer;background:{{ nav.feed.bg }};text-align:left"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex:none"><path d="M3 5.5 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path><path d="M3 10 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path><path d="M3 14.5 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path></svg><span style="font:600 13px/1 'Instrument Sans',sans-serif;color:{{ nav.feed.c }}">Лента</span></button>
+          <button onClick="{{ go.threads }}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border:none;border-radius:10px;cursor:pointer;background:{{ nav.threads.bg }};text-align:left"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex:none"><circle cx="10" cy="10" r="6.8" stroke="{{ nav.threads.c }}" stroke-width="1.5"></circle><circle cx="10" cy="10" r="2.5" fill="{{ nav.threads.c }}"></circle></svg><span style="font:600 13px/1 'Instrument Sans',sans-serif;color:{{ nav.threads.c }}">Треды</span></button>
+          <button onClick="{{ go.proc }}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border:none;border-radius:10px;cursor:pointer;background:{{ nav.proc.bg }};text-align:left"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex:none"><line x1="3" y1="5.5" x2="12.5" y2="5.5" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line><line x1="6.5" y1="10" x2="17" y2="10" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line><line x1="3.5" y1="14.5" x2="11" y2="14.5" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line></svg><span style="font:600 13px/1 'Instrument Sans',sans-serif;color:{{ nav.proc.c }}">Процессы</span></button>
+          <button onClick="{{ go.relations }}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border:none;border-radius:10px;cursor:pointer;background:{{ nav.relations.bg }};text-align:left"><svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="flex:none"><line x1="6.5" y1="8" x2="9.2" y2="12.8" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><line x1="13.6" y1="7" x2="10.9" y2="12.6" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><line x1="7.7" y1="5.9" x2="12.6" y2="5.2" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><circle cx="5.5" cy="6.2" r="2.3" fill="{{ nav.relations.c }}"></circle><circle cx="14.8" cy="5" r="2.3" fill="{{ nav.relations.c }}"></circle><circle cx="10" cy="14.8" r="2.3" fill="{{ nav.relations.c }}"></circle></svg><span style="font:600 13px/1 'Instrument Sans',sans-serif;color:{{ nav.relations.c }}">Связи</span></button>
+          <div style="margin-top:auto;padding:14px 10px 4px">
+            <div style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-bottom:7px">РАЗОБРАНО СЕГОДНЯ</div>
+            <div style="font:700 24px/1 'JetBrains Mono',monospace;color:var(--accent)">{{ clearedCount }}</div>
+          </div>
+        </nav>
+
+        <main style="flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:{{ ui.contentPad }}">
+          <div style="max-width:{{ ui.contentMax }};margin:0 auto;display:flex;flex-direction:column;gap:14px">
+            <div style="display:{{ ui.deskShow }};align-items:baseline;gap:12px;margin-bottom:2px">
+              <h1 style="margin:0;font:700 27px/1 'Bricolage Grotesque',sans-serif;color:var(--ink)">{{ screenTitle }}</h1>
+              <span style="font:500 12px/1 'JetBrains Mono',monospace;color:var(--ink3)">{{ screenSub }}</span>
+            </div>
+
+            <sc-if value="{{ isDigest }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="position:relative;border-radius:22px;overflow:hidden;box-shadow:var(--shadow-card);background:linear-gradient(162deg,#0c3c4d,#0a1d29 72%)">
+                  <div style="position:absolute;inset:0;overflow:hidden;pointer-events:none">
+                    <div style="position:absolute;top:6%;left:-12%;width:64%;height:48px;background:radial-gradient(closest-side,rgba(185,222,232,.17),transparent);filter:blur(7px);animation:{{ anim1 }}"></div>
+                    <div style="position:absolute;top:34%;right:-14%;width:58%;height:44px;background:radial-gradient(closest-side,rgba(140,190,230,.14),transparent);filter:blur(8px);animation:{{ anim2 }}"></div>
+                    <div style="position:absolute;left:0;right:0;bottom:0;height:46%;background:linear-gradient(180deg,transparent,rgba(12,40,55,.4))"></div>
+                    <div style="position:absolute;left:0;right:0;bottom:33%;height:2px;background:repeating-linear-gradient(90deg,#37c0d4,#37c0d4 3px,transparent 3px,transparent 9px);opacity:.22;animation:{{ shimmerAnim }}"></div>
+                  </div>
+                  <div style="position:relative;padding:18px">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+                      <div style="min-width:0">
+                        <div style="font:600 10.5px/1 'JetBrains Mono',monospace;color:rgba(210,235,240,.72);letter-spacing:.06em">МОРСКАЯ СВОДКА · ИНБОКС</div>
+                        <div style="margin-top:10px;font:700 16px/1.18 'Bricolage Grotesque',sans-serif;color:#eaf6f8;text-wrap:balance">{{ hero.headline }}</div>
+                        <div style="margin-top:5px;font:400 12px/1.42 'Instrument Sans',sans-serif;color:rgba(200,225,232,.74);max-width:230px">{{ hero.sub }}</div>
+                      </div>
+                      <div style="flex:none;text-align:right">
+                        <div style="font:500 9.5px/1 'JetBrains Mono',monospace;color:rgba(210,235,240,.62)">БАЛЛ ШТОРМА</div>
+                        <div style="font:700 46px/.9 'Bricolage Grotesque',sans-serif;color:{{ hero.scoreColor }};margin-top:5px">{{ hero.score }}</div>
+                        <div style="font:700 11px/1 'JetBrains Mono',monospace;color:{{ hero.scoreColor }};margin-top:4px;text-transform:uppercase;letter-spacing:.04em">{{ hero.scoreLabel }}</div>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:7px;margin-top:18px">
+                      <sc-for list="{{ hero.buckets }}" as="b" hint-placeholder-count="5">
+                        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+                          <div style="width:100%;height:36px;display:flex;align-items:flex-end">
+                            <div style="width:100%;background:{{ b.color }};border-radius:5px 5px 3px 3px;height:{{ b.h }};min-height:4px;opacity:.92"></div>
+                          </div>
+                          <div style="font:700 13px/1 'JetBrains Mono',monospace;color:#eaf6f8">{{ b.count }}</div>
+                          <div style="font:500 9px/1 'Instrument Sans',sans-serif;color:rgba(200,225,232,.62)">{{ b.label }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:8px">
+                  <button onClick="{{ setThemes }}" style="{{ modeSeg.themes }}">Темы</button>
+                  <button onClick="{{ setAreas }}" style="{{ modeSeg.areas }}">Зоны</button>
+                </div>
+
+                <sc-if value="{{ isThemes }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ themeCards }}" as="th" hint-placeholder-count="4">
+                      <div style="border-radius:18px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-card)">
+                        <button onClick="{{ th.onToggle }}" style="width:100%;display:flex;align-items:center;gap:11px;padding:13px 14px;background:none;border:none;cursor:pointer;text-align:left">
+                          <span style="width:9px;height:27px;border-radius:4px;background:{{ th.weather.color }};flex:none"></span>
+                          <div style="flex:1;min-width:0">
+                            <div style="font:600 14px/1.2 'Instrument Sans',sans-serif;color:var(--ink)">{{ th.name }}</div>
+                            <div style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:4px">{{ th.area.name }} · {{ th.count }} сообщ.</div>
+                          </div>
+                          <span style="font:700 10px/1 'JetBrains Mono',monospace;color:{{ th.weather.color }};padding:4px 9px;border-radius:999px;background:{{ th.weather.tint }}">{{ th.weather.label }}</span>
+                          <span style="font:700 16px/1 'JetBrains Mono',monospace;color:var(--ink2);width:26px;text-align:right">{{ th.maxImp }}</span>
+                          <span style="color:var(--ink3);font-size:12px;width:12px;text-align:center">{{ th.caret }}</span>
+                        </button>
+                        <sc-if value="{{ th.open }}" hint-placeholder-val="{{ true }}">
+                          <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:10px">
+                            <sc-for list="{{ th.items }}" as="it" hint-placeholder-count="2"><dc-import name="StormCard" item="{{ it }}" hint-size="100%,160px"></dc-import></sc-for>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ isAreas }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:20px">
+                    <sc-for list="{{ areaGroups }}" as="g" hint-placeholder-count="4">
+                      <section style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;align-items:center;gap:9px">
+                          <span style="width:8px;height:8px;border-radius:50%;background:{{ g.area.color }}"></span>
+                          <h3 style="margin:0;font:700 11.5px/1 'JetBrains Mono',monospace;letter-spacing:.09em;text-transform:uppercase;color:{{ g.area.color }}">{{ g.area.name }}</h3>
+                          <span style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3)">{{ g.count }}</span>
+                        </div>
+                        <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2"><dc-import name="StormCard" item="{{ it }}" hint-size="100%,160px"></dc-import></sc-for>
+                      </section>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <sc-for list="{{ feedFilters }}" as="f" hint-placeholder-count="5">
+                    <button onClick="{{ f.onClick }}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:999px;cursor:pointer;border:1px solid {{ f.border }};background:{{ f.bg }};font:600 12px/1 'Instrument Sans',sans-serif;color:{{ f.color }}">{{ f.label }}<span style="font:500 11px/1 'JetBrains Mono',monospace;opacity:.7">{{ f.count }}</span></button>
+                  </sc-for>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:11px">
+                  <sc-for list="{{ feedItems }}" as="it" hint-placeholder-count="6"><dc-import name="StormCard" item="{{ it }}" hint-size="100%,160px"></dc-import></sc-for>
+                  <sc-if value="{{ feedEmpty }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;padding:32px;font:500 13px/1.4 'Instrument Sans',sans-serif;color:var(--ink3)">Штиль — в этой категории пусто.</div></sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isThreads }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <sc-for list="{{ threads }}" as="th" hint-placeholder-count="4">
+                  <div style="border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow-card)">
+                    <button onClick="{{ th.onToggle }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px;background:none;border:none;cursor:pointer;text-align:left">
+                      <span style="width:32px;height:32px;border-radius:50%;border:2px solid {{ th.weather.color }};display:flex;align-items:center;justify-content:center;flex:none"><span style="width:11px;height:11px;border-radius:50%;background:{{ th.weather.color }}"></span></span>
+                      <div style="flex:1;min-width:0">
+                        <div style="font:600 14px/1.2 'Instrument Sans',sans-serif;color:var(--ink)">{{ th.title }}</div>
+                        <div style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:4px">{{ th.src }} · {{ th.count }} сообщ. · {{ th.ago }}</div>
+                      </div>
+                      <span style="font:700 16px/1 'JetBrains Mono',monospace;color:{{ th.weather.color }}">{{ th.maxImp }}</span>
+                      <span style="color:var(--ink3);font-size:12px">{{ th.caret }}</span>
+                    </button>
+                    <sc-if value="{{ th.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:10px">
+                        <sc-for list="{{ th.items }}" as="it" hint-placeholder-count="2"><dc-import name="StormCard" item="{{ it }}" hint-size="100%,160px"></dc-import></sc-for>
+                        <sc-if value="{{ th.hasMore }}" hint-placeholder-val="{{ false }}"><div style="text-align:center;font:500 12px/1 'Instrument Sans',sans-serif;color:var(--ink3);padding:5px">+ ещё {{ th.more }} в этом треде</div></sc-if>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isProc }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:16px">
+                <div style="border-radius:18px;background:var(--surface);box-shadow:var(--shadow-card);padding:18px 18px 14px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:15px">
+                    <div style="font:600 13px/1 'Instrument Sans',sans-serif;color:var(--ink)">Погодные фронты · 14 дней</div>
+                    <div style="font:500 11px/1 'JetBrains Mono',monospace;color:var(--ink3)">{{ procOpenCount }} активны</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:11px">
+                    <sc-for list="{{ procBars }}" as="p" hint-placeholder-count="6">
+                      <div onClick="{{ p.onClick }}" style="cursor:pointer">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                          <span style="font:600 12px/1 'Instrument Sans',sans-serif;color:var(--ink)">{{ p.title }}</span>
+                          <span style="font:600 9px/1 'JetBrains Mono',monospace;color:{{ p.statusColor }};padding:2px 7px;border-radius:999px;background:{{ p.statusTint }}">{{ p.statusLabel }}</span>
+                        </div>
+                        <div style="position:relative;height:14px;background:var(--surface2);border-radius:7px;overflow:hidden">
+                          <div style="position:absolute;top:0;bottom:0;left:{{ p.left }};width:{{ p.width }};background:linear-gradient(90deg,{{ p.color }},{{ p.color2 }});border-radius:7px"></div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;margin-top:11px">
+                    <sc-for list="{{ timelineTicks }}" as="t" hint-placeholder-count="6"><span style="font:500 9px/1 'JetBrains Mono',monospace;color:var(--ink3)">{{ t.label }}</span></sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ procList }}" as="p" hint-placeholder-count="6">
+                    <div onClick="{{ p.onClick }}" style="cursor:pointer;border:1px solid {{ p.cardBorder }};border-radius:16px;background:var(--surface);box-shadow:var(--shadow-card);padding:14px 15px;display:flex;align-items:center;gap:12px">
+                      <span style="width:6px;height:40px;border-radius:3px;background:{{ p.color }};flex:none"></span>
+                      <div style="flex:1;min-width:0">
+                        <div style="font:600 14px/1.2 'Instrument Sans',sans-serif;color:var(--ink)">{{ p.title }}</div>
+                        <div style="font:400 12px/1.38 'Instrument Sans',sans-serif;color:var(--ink2);margin-top:3px;text-wrap:pretty">{{ p.summary }}</div>
+                      </div>
+                      <div style="text-align:right;flex:none">
+                        <div style="font:700 19px/1 'JetBrains Mono',monospace;color:{{ p.color }}">{{ p.imp }}</div>
+                        <div style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:5px">{{ p.count }} соб.</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isRelations }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="font:400 12.5px/1.45 'Instrument Sans',sans-serif;color:var(--ink2);max-width:520px">Каждый узел — процесс (циклон). Линии — связи между ними: что чему причина, что за чем следует. Нажмите узел, чтобы раскрыть.</div>
+                <div style="border-radius:20px;box-shadow:var(--shadow-card);background:radial-gradient(130% 120% at 50% 0%,var(--surface2),var(--surface));overflow:hidden;padding:8px">
+                  <svg viewBox="0 0 640 400" style="width:100%;height:auto;display:block">
+                    <sc-for list="{{ graph.edges }}" as="e" hint-placeholder-count="5"><line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}" stroke="{{ e.color }}" stroke-width="2" opacity=".55" stroke-dasharray="{{ e.dash }}"></line></sc-for>
+                    <sc-for list="{{ graph.nodes }}" as="n" hint-placeholder-count="6">
+                      <g onClick="{{ n.onClick }}" style="cursor:pointer">
+                        <circle cx="{{ n.cx }}" cy="{{ n.cy }}" r="{{ n.rGlow }}" fill="{{ n.glow }}"></circle>
+                        <circle cx="{{ n.cx }}" cy="{{ n.cy }}" r="{{ n.r }}" fill="{{ n.fill }}" stroke="{{ n.stroke }}" stroke-width="{{ n.sw }}"></circle>
+                        <text x="{{ n.cx }}" y="{{ n.cy }}" text-anchor="middle" dominant-baseline="central" style="font:700 12px 'JetBrains Mono',monospace;fill:#fff">{{ n.imp }}</text>
+                        <text x="{{ n.cx }}" y="{{ n.ty }}" text-anchor="middle" style="font:600 12px 'Instrument Sans',sans-serif;fill:var(--ink)">{{ n.label }}</text>
+                      </g>
+                    </sc-for>
+                  </svg>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:14px">
+                  <sc-for list="{{ graph.legend }}" as="l" hint-placeholder-count="3"><div style="display:inline-flex;align-items:center;gap:8px"><span style="width:18px;height:3px;border-radius:2px;background:{{ l.color }}"></span><span style="font:500 11px/1 'Instrument Sans',sans-serif;color:var(--ink2)">{{ l.label }}</span></div></sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </main>
+
+        <aside style="display:{{ ui.rightShow }};flex-direction:column;width:302px;flex:none;background:var(--bg2);padding:18px;gap:18px;overflow-y:auto">
+          <sc-if value="{{ hasSelProc }}" hint-placeholder-val="{{ false }}">
+            <div style="border-radius:16px;background:var(--surface);box-shadow:var(--shadow-card);padding:16px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+                <span style="width:8px;height:8px;border-radius:50%;background:{{ selProc.color }}"></span>
+                <span style="font:600 10px/1 'JetBrains Mono',monospace;color:{{ selProc.statusColor }};text-transform:uppercase;letter-spacing:.04em">{{ selProc.statusLabel }}</span>
+              </div>
+              <div style="font:700 16px/1.2 'Bricolage Grotesque',sans-serif;color:var(--ink)">{{ selProc.title }}</div>
+              <div style="font:400 12px/1.45 'Instrument Sans',sans-serif;color:var(--ink2);margin-top:7px">{{ selProc.summary }}</div>
+              <div style="display:flex;gap:18px;margin-top:14px">
+                <div><div style="font:700 21px/1 'JetBrains Mono',monospace;color:{{ selProc.color }}">{{ selProc.imp }}</div><div style="font:500 9px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:4px">важность</div></div>
+                <div><div style="font:700 21px/1 'JetBrains Mono',monospace;color:var(--ink)">{{ selProc.count }}</div><div style="font:500 9px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:4px">событий</div></div>
+              </div>
+              <button onClick="{{ clearSelProc }}" style="margin-top:14px;font:500 11px/1 'Instrument Sans',sans-serif;color:var(--ink3);background:var(--surface2);border:none;border-radius:8px;padding:7px 11px;cursor:pointer">Закрыть</button>
+            </div>
+          </sc-if>
+          <div>
+            <div style="font:600 10.5px/1 'JetBrains Mono',monospace;color:var(--ink3);letter-spacing:.07em;margin-bottom:12px">ОБСТАНОВКА</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ legendScale }}" as="s" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="width:30px;font:700 13px/1 'JetBrains Mono',monospace;color:{{ s.color }};text-align:right">{{ s.count }}</span>
+                  <span style="flex:1;height:8px;border-radius:4px;background:var(--surface2);overflow:hidden;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:{{ s.pct }};background:{{ s.color }};border-radius:4px"></span></span>
+                  <span style="width:52px;font:500 11px/1 'Instrument Sans',sans-serif;color:var(--ink2)">{{ s.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div>
+            <div style="font:600 10.5px/1 'JetBrains Mono',monospace;color:var(--ink3);letter-spacing:.07em;margin-bottom:12px">ПИКОВЫЕ УГРОЗЫ</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ topHazards }}" as="h" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:12px;background:var(--surface)">
+                  <span style="font:700 16px/1 'JetBrains Mono',monospace;color:{{ h.sevColor }};width:26px">{{ h.imp }}</span>
+                  <div style="flex:1;min-width:0"><div style="font:600 12px/1.25 'Instrument Sans',sans-serif;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.t }}</div><div style="font:500 10px/1 'JetBrains Mono',monospace;color:var(--ink3);margin-top:3px">{{ h.weather.label }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <nav style="display:{{ ui.tabbarShow }};flex:none;background:var(--bg2);padding:10px 8px 24px">
+        <button onClick="{{ go.digest }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:5px 2px"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="{{ nav.digest.c }}" stroke-width="1.5"></circle><path d="M13 7 L11.2 11.2 L7 13 L8.8 8.8 Z" fill="{{ nav.digest.c }}"></path></svg><span style="font:600 10px/1 'Instrument Sans',sans-serif;color:{{ nav.digest.c }}">Сводка</span></button>
+        <button onClick="{{ go.feed }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:5px 2px"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><path d="M3 5.5 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path><path d="M3 10 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path><path d="M3 14.5 q2.4 -2.4 4.7 0 t4.7 0 t4.7 0" stroke="{{ nav.feed.c }}" stroke-width="1.6" stroke-linecap="round"></path></svg><span style="font:600 10px/1 'Instrument Sans',sans-serif;color:{{ nav.feed.c }}">Лента</span></button>
+        <button onClick="{{ go.threads }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:5px 2px"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="6.8" stroke="{{ nav.threads.c }}" stroke-width="1.5"></circle><circle cx="10" cy="10" r="2.5" fill="{{ nav.threads.c }}"></circle></svg><span style="font:600 10px/1 'Instrument Sans',sans-serif;color:{{ nav.threads.c }}">Треды</span></button>
+        <button onClick="{{ go.proc }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:5px 2px"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><line x1="3" y1="5.5" x2="12.5" y2="5.5" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line><line x1="6.5" y1="10" x2="17" y2="10" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line><line x1="3.5" y1="14.5" x2="11" y2="14.5" stroke="{{ nav.proc.c }}" stroke-width="2.4" stroke-linecap="round"></line></svg><span style="font:600 10px/1 'Instrument Sans',sans-serif;color:{{ nav.proc.c }}">Процессы</span></button>
+        <button onClick="{{ go.relations }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:5px 2px"><svg width="22" height="22" viewBox="0 0 20 20" fill="none"><line x1="6.5" y1="8" x2="9.2" y2="12.8" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><line x1="13.6" y1="7" x2="10.9" y2="12.6" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><line x1="7.7" y1="5.9" x2="12.6" y2="5.2" stroke="{{ nav.relations.c }}" stroke-width="1.3"></line><circle cx="5.5" cy="6.2" r="2.3" fill="{{ nav.relations.c }}"></circle><circle cx="14.8" cy="5" r="2.3" fill="{{ nav.relations.c }}"></circle><circle cx="10" cy="14.8" r="2.3" fill="{{ nav.relations.c }}"></circle></svg><span style="font:600 10px/1 'Instrument Sans',sans-serif;color:{{ nav.relations.c }}">Связи</span></button>
+      </nav>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:940},&quot;accent&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ocean&quot;,&quot;storm&quot;,&quot;emerald&quot;],&quot;default&quot;:&quot;ocean&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Стиль&quot;,&quot;label&quot;:&quot;Акцент&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Стиль&quot;,&quot;label&quot;:&quot;Меньше движения&quot;}}">
+class Component extends DCLogic {
+  state = { screen:'digest', device:'phone', theme:'dark', mode:'themes', feedSev:'all', expanded:{}, overrides:{}, selProc:null }
+
+  // ---------- static data ----------
+  get areasRaw(){ return [
+    {id:'work',name:'Работа',color:'#37b7c9'},
+    {id:'fin',name:'Финансы',color:'#5a8fe6'},
+    {id:'health',name:'Здоровье',color:'#3fbf8f'},
+    {id:'family',name:'Семья',color:'#c98ad0'},
+    {id:'self',name:'Личное',color:'#e0a95a'},
+  ]}
+  get rawItems(){ return [
+    {id:'i1',t:'Слив API-ключей в коммите',s:'GitGuardian: возможный секрет в a3f9c1 — репозиторий core',imp:92,area:'work',src:'GitGuardian',ago:'2 мин',action:'Отозвать ключ',theme:'sec'},
+    {id:'i2',t:'Платёж по ипотеке завтра',s:'Списание 84 200 ₽ со счёта •8801, 15 июля',imp:88,area:'fin',src:'Сбербанк',ago:'14 мин',action:'Проверить баланс',theme:'mortgage'},
+    {id:'i3',t:'CI упал на main',s:'Сборка #4821 — 12 тестов красные, деплой заблокирован',imp:83,area:'work',src:'GitHub',ago:'22 мин',action:'Открыть лог',theme:'ci'},
+    {id:'i4',t:'Дедлайн по отчёту завтра',s:'Квартальный отчёт для инвесторов — черновик не готов',imp:79,area:'work',src:'Notion',ago:'40 мин',action:'Дописать риски',theme:'report'},
+    {id:'i5',t:'Задолженность по карте',s:'Минимальный платёж 3 400 ₽ до 20 июля',imp:72,area:'fin',src:'Тинькофф',ago:'1 ч',action:'Оплатить',theme:'cards'},
+    {id:'i6',t:'Мама звонила дважды',s:'Пропущенные вызовы 13:40 и 13:52',imp:67,area:'family',src:'Телефон',ago:'1 ч',action:'Перезвонить',theme:'family'},
+    {id:'i7',t:'Совещание перенесено на 15:00',s:'Планёрка по запуску v2 · Google Meet',imp:63,area:'work',src:'Календарь',ago:'2 ч',action:'',theme:'v2'},
+    {id:'i8',t:'Штраф ГИБДД',s:'Превышение скорости, 500 ₽ со скидкой до 25.07',imp:60,area:'self',src:'Госуслуги',ago:'2 ч',action:'',theme:'gov'},
+    {id:'i9',t:'Результаты анализов готовы',s:'Клиника Атлас — доступны в приложении',imp:56,area:'health',src:'Атлас',ago:'3 ч',action:'',theme:'health'},
+    {id:'i10',t:'PR готов к ревью',s:'feat: storm-gauge — ждёт вашего апрува',imp:51,area:'work',src:'GitHub',ago:'3 ч',action:'',theme:'v2'},
+    {id:'i11',t:'Зарплата зачислена',s:'+240 000 ₽ на счёт •8801',imp:45,area:'fin',src:'Сбербанк',ago:'5 ч',action:'',theme:'cards'},
+    {id:'i12',t:'Комментарий в Figma',s:'Аня: «поправь отступы в шапке»',imp:40,area:'work',src:'Figma',ago:'5 ч',action:'',theme:'v2'},
+    {id:'i13',t:'Доставка сегодня 18–20',s:'Заказ Ozon •77219 — 3 позиции',imp:33,area:'self',src:'Ozon',ago:'6 ч',action:'',theme:'gov'},
+    {id:'i14',t:'Тренировка через час',s:'Бассейн, дорожка 4, 19:00',imp:27,area:'health',src:'Календарь',ago:'6 ч',action:'',theme:'health'},
+    {id:'i15',t:'Netflix спишет 999 ₽',s:'Продление подписки 5 июля',imp:20,area:'self',src:'Netflix',ago:'8 ч',action:'',theme:'gov'},
+    {id:'i16',t:'Скидка 40% заканчивается',s:'Корзина в Lamoda ждёт вас',imp:11,area:'self',src:'Lamoda',ago:'9 ч',action:'',theme:'gov'},
+  ]}
+  get themeMeta(){ return {
+    sec:{name:'Безопасность',area:'work'}, ci:{name:'Инфраструктура / CI',area:'work'}, v2:{name:'Запуск v2',area:'work'},
+    report:{name:'Квартальный отчёт',area:'work'}, mortgage:{name:'Ипотека',area:'fin'}, cards:{name:'Карты и счета',area:'fin'},
+    family:{name:'Семья',area:'family'}, health:{name:'Здоровье',area:'health'}, gov:{name:'Бытовое',area:'self'},
+  }}
+  get threadDefs(){ return [
+    {id:'th1',title:'Сборка и деплой',src:'GitHub',count:6,ago:'22 мин',ids:['i3','i10']},
+    {id:'th2',title:'Счёт •8801 · Сбербанк',src:'Сбербанк',count:5,ago:'14 мин',ids:['i2','i11']},
+    {id:'th3',title:'Запуск v2 · планёрки',src:'Календарь',count:6,ago:'2 ч',ids:['i7','i12']},
+    {id:'th4',title:'Инцидент безопасности',src:'GitGuardian',count:3,ago:'2 мин',ids:['i1']},
+  ]}
+  get procDefs(){ return [
+    {id:'pr1',title:'Инцидент с секретами',short:'Секреты',area:'work',status:'open',imp:92,count:3,start:10,end:13,summary:'Возможная утечка ключей из репозитория core. Деплой заблокирован.',pos:[170,95]},
+    {id:'pr2',title:'Запуск v2',short:'Запуск v2',area:'work',status:'open',imp:83,count:8,start:2,end:13,summary:'CI, дизайн и планёрки перед релизом. Пик активности на этой неделе.',pos:[350,155]},
+    {id:'pr3',title:'Квартальный отчёт',short:'Отчёт',area:'work',status:'open',imp:79,count:4,start:6,end:13,summary:'Отчёт для инвесторов, дедлайн завтра.',pos:[520,100]},
+    {id:'pr4',title:'Ипотека и переезд',short:'Ипотека',area:'fin',status:'open',imp:88,count:6,start:0,end:13,summary:'Платежи по ипотеке и логистика переезда.',pos:[500,300]},
+    {id:'pr5',title:'Чек-ап здоровья',short:'Чек-ап',area:'health',status:'frozen',imp:56,count:3,start:4,end:9,summary:'Плановый чек-ап, ждём результаты анализов.',pos:[150,305]},
+    {id:'pr6',title:'Отпуск в августе',short:'Отпуск',area:'family',status:'open',imp:33,count:5,start:8,end:13,summary:'Планирование отпуска: брони и бюджет.',pos:[320,332]},
+  ]}
+  get edgeDefs(){ return [
+    {s:'pr1',t:'pr2',rel:'causal',},
+    {s:'pr2',t:'pr3',rel:'follow_up'},
+    {s:'pr4',t:'pr3',rel:'related'},
+    {s:'pr5',t:'pr6',rel:'related'},
+    {s:'pr4',t:'pr6',rel:'follow_up'},
+  ]}
+
+  // ---------- helpers ----------
+  set(k,v){ this.setState({[k]:v}) }
+  hexRgba(hex,a){ const h=hex.replace('#',''); const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); return `rgba(${r},${g},${b},${a})` }
+  weather(v){
+    if(v<=20) return {key:'calm',label:'Штиль',color:'#6f97a3',rank:0}
+    if(v<=40) return {key:'ripple',label:'Рябь',color:'#24b3c9',rank:1}
+    if(v<=60) return {key:'waves',label:'Волны',color:'#3d86e0',rank:2}
+    if(v<=80) return {key:'storm',label:'Шторм',color:'#7b6cf2',rank:3}
+    return {key:'hurricane',label:'Ураган',color:'#f2603f',rank:4}
+  }
+  wavePath(v,w=46,h=16){
+    const mid=h/2, amp=1.2+(v/100)*(h/2-1.6), cyc=1+v/22, N=30; let d=''
+    for(let i=0;i<=N;i++){ const x=w*i/N; const y=mid-Math.sin(i/N*Math.PI*2*cyc)*amp*(0.45+0.55*i/N); d+=(i?'L':'M')+x.toFixed(1)+','+y.toFixed(1) }
+    return d
+  }
+  areaById(id){ const a=this.areasRaw.find(x=>x.id===id); return a?{...a,tint:this.hexRgba(a.color,0.14)}:{name:'Без зоны',color:'#8098a2',tint:'rgba(128,152,162,.14)'} }
+  mkItem(r){
+    const st=this.state.overrides[r.id]||'inbox'; const w=this.weather(r.imp)
+    return {...r, status:st, weather:{...w,tint:this.hexRgba(w.color,0.14)}, sevColor:w.color, wave:this.wavePath(r.imp),
+      area:this.areaById(r.area), hasAction:!!r.action,
+      onDone:()=>this.set('overrides',{...this.state.overrides,[r.id]:'done'}),
+      onSnooze:()=>this.set('overrides',{...this.state.overrides,[r.id]:'snoozed'}),
+      onSkip:()=>this.set('overrides',{...this.state.overrides,[r.id]:'dismissed'}) }
+  }
+  inbox(){ return this.rawItems.map(r=>this.mkItem(r)).filter(i=>i.status==='inbox') }
+
+  renderVals(){
+    const s=this.state, inbox=this.inbox()
+    const clearedCount=Object.values(s.overrides).filter(v=>v!=='inbox').length
+    // theme / device
+    const themeName=s.theme
+    const themeIcon=s.theme==='dark'?'●':'○'
+    const themeLabel=s.theme==='dark'?'Тёмная':'Светлая'
+    const isPhone=s.device==='phone'
+    const segBase='font:600 12px/1 \'Instrument Sans\',sans-serif;padding:7px 14px;border-radius:8px;border:none;cursor:pointer;'
+    const segStyle=a=>segBase+(a?'background:#0c1c26;color:#fff':'background:transparent;color:#5a6f78')
+    const seg={phone:segStyle(isPhone),desktop:segStyle(!isPhone)}
+    const frame=isPhone
+      ? {w:'392px',h:'812px',bg:'#04101a',border:'9px solid #0a1e28',radius:'46px',inner:'37px'}
+      : {w:'1180px',h:'764px',bg:'var(--surface)',border:'1px solid rgba(20,60,80,.2)',radius:'16px',inner:'15px'}
+    const ui=isPhone
+      ? {phoneShow:'flex',deskShow:'none',tabbarShow:'flex',siderailShow:'none',rightShow:'none',contentPad:'6px 16px 22px',contentMax:'640px'}
+      : {phoneShow:'none',deskShow:'flex',tabbarShow:'none',siderailShow:'flex',rightShow:'flex',contentPad:'22px 28px 32px',contentMax:'720px'}
+    // accent tweak
+    const accMap={ocean:['#37c0d4','#3d86e0'],storm:['#8fb0d6','#e0a94f'],emerald:['#2fbf9a','#2a8fd6']}
+    const acc=accMap[this.props.accent]||accMap.ocean
+    const accentVars=`--accent:${acc[0]};--accent2:${acc[1]}`
+    const rm=!!this.props.reduceMotion
+    const anim1=rm?'none':'drift 15s ease-in-out infinite alternate'
+    const anim2=rm?'none':'drift2 19s ease-in-out infinite alternate'
+    const shimmerAnim=rm?'none':'shimmer 6s linear infinite'
+    // nav
+    const navStyle=a=>({ c:a?'var(--accent)':'var(--ink3)', dot:a?'var(--accent)':'var(--ink3)',
+      bg:a?'color-mix(in oklab, var(--accent) 16%, transparent)':'transparent',
+      tabBg:a?'color-mix(in oklab, var(--accent) 22%, transparent)':'var(--surface2)' })
+    const nav={digest:navStyle(s.screen==='digest'),feed:navStyle(s.screen==='feed'),threads:navStyle(s.screen==='threads'),proc:navStyle(s.screen==='proc'),relations:navStyle(s.screen==='relations')}
+    const go={digest:()=>this.set('screen','digest'),feed:()=>this.set('screen','feed'),threads:()=>this.set('screen','threads'),proc:()=>this.set('screen','proc'),relations:()=>this.set('screen','relations')}
+    const titles={digest:['Сводка','важное сейчас'],feed:['Лента','все сообщения'],threads:['Треды','сгруппировано'],proc:['Процессы','фронты во времени'],relations:['Связи','граф процессов']}
+    const tt=titles[s.screen]
+    // screen flags
+    const flags={isDigest:s.screen==='digest',isFeed:s.screen==='feed',isThreads:s.screen==='threads',isProc:s.screen==='proc',isRelations:s.screen==='relations'}
+    // hero
+    const scoreN=inbox.length?Math.round(inbox.reduce((a,i)=>a+i.imp,0)/inbox.length):0
+    const scoreW=this.weather(scoreN); const peak=inbox.length?Math.max(...inbox.map(i=>i.imp)):0
+    const rankCount=r=>inbox.filter(i=>i.weather.rank===r).length
+    const counts=[0,1,2,3,4].map(rankCount); const maxC=Math.max(1,...counts)
+    const sevColors=['#6f97a3','#24b3c9','#3d86e0','#7b6cf2','#f2603f']; const sevLabels=['Штиль','Рябь','Волны','Шторм','Ураган']
+    const buckets=counts.map((c,i)=>({count:c,color:sevColors[i],label:sevLabels[i],h:Math.round(c/maxC*100)+'%'}))
+    let headline='Спокойное море',sub='Ничего критичного — можно разгребать в своём темпе.'
+    if(peak>=81){headline='Штормовое предупреждение';sub='Есть ураганы — разберите их первыми, пока не снесло.'}
+    else if(peak>=61){headline='Свежий ветер, местами шторм';sub='Несколько важных фронтов набирают силу — присмотритесь.'}
+    const hero={score:scoreN,scoreColor:scoreW.color,scoreLabel:scoreW.label,headline,sub,buckets}
+    // themes
+    const isThemes=s.mode==='themes'
+    const modeBase='font:600 12px/1 \'Instrument Sans\',sans-serif;padding:9px 18px;border-radius:11px;cursor:pointer;border:none;'
+    const modeStyle=a=>modeBase+(a?'background:var(--accent);color:#07141c':'background:var(--surface);color:var(--ink2)')
+    const modeSeg={themes:modeStyle(isThemes),areas:modeStyle(!isThemes)}
+    const themeKeys=[...new Set(inbox.map(i=>i.theme))]
+    let themeCards=themeKeys.map(k=>{ const items=inbox.filter(i=>i.theme===k).sort((a,b)=>b.imp-a.imp); const m=this.themeMeta[k]||{name:k,area:null}
+      const maxImp=Math.max(...items.map(i=>i.imp)); const w=this.weather(maxImp)
+      return {id:k,name:m.name,area:this.areaById(m.area),items,count:items.length,maxImp,weather:{...w,tint:this.hexRgba(w.color,0.14)}} })
+      .sort((a,b)=>b.maxImp-a.maxImp)
+    themeCards=themeCards.map((c,i)=>{ const open=(c.id in s.expanded)?s.expanded[c.id]:(i===0)
+      return {...c,open,caret:open?'▾':'▸',onToggle:()=>this.set('expanded',{...s.expanded,[c.id]:!open})} })
+    // areas
+    const byArea={}; inbox.forEach(i=>{ (byArea[i.area.id]=byArea[i.area.id]||[]).push(i) })
+    let areaGroups=Object.keys(byArea).map(k=>{ const items=byArea[k].sort((a,b)=>b.imp-a.imp)
+      return {area:items[0].area,items,count:items.length,maxImp:Math.max(...items.map(i=>i.imp))} }).sort((a,b)=>b.maxImp-a.maxImp)
+    // feed
+    const filterDefs=[['all','Всё',null],['hurricane','Ураган',4],['storm','Шторм',3],['waves','Волны',2],['calm','Спокойно',-1]]
+    const matchSev=(i,key)=>{ if(key==='all')return true; if(key==='calm')return i.weather.rank<=1; const rk={hurricane:4,storm:3,waves:2}[key]; return i.weather.rank===rk }
+    const feedFilters=filterDefs.map(([key,label])=>{ const active=s.feedSev===key; const cnt=inbox.filter(i=>matchSev(i,key)).length
+      const sc=key==='all'?'var(--accent)':(key==='calm'?'#24b3c9':{hurricane:'#f2603f',storm:'#7b6cf2',waves:'#3d86e0'}[key])
+      return {label,count:cnt,onClick:()=>this.set('feedSev',key),
+        color:active?sc:'var(--ink2)', border:'transparent', bg:active?this.hexRgba(sc.startsWith('#')?sc:'#37c0d4',0.16):'var(--surface)'} })
+    const feedItems=inbox.filter(i=>matchSev(i,s.feedSev))
+    const feedEmpty=feedItems.length===0
+    // threads
+    let threads=this.threadDefs.map(d=>{ const items=d.ids.map(id=>this.mkItem(this.rawItems.find(r=>r.id===id))).filter(i=>i.status==='inbox')
+      const maxImp=Math.max(0,...items.map(i=>i.imp)); const w=this.weather(maxImp); const more=d.count-items.length
+      return {...d,items,maxImp,weather:{...w,tint:this.hexRgba(w.color,0.14)},more,hasMore:more>0} }).sort((a,b)=>b.maxImp-a.maxImp)
+    threads=threads.map((t,i)=>{ const key='thr:'+t.id; const open=(key in s.expanded)?s.expanded[key]:(i===0)
+      return {...t,open,caret:open?'▾':'▸',onToggle:()=>this.set('expanded',{...s.expanded,[key]:!open})} })
+    // processes
+    const statusMap={open:{label:'активен',color:'#3fbf8f'},frozen:{label:'заморожен',color:'#6f97a3'},closed:{label:'затих',color:'#65808c'}}
+    const mkProc=d=>{ const w=this.weather(d.imp); const st=statusMap[d.status]
+      return {...d,color:w.color,color2:this.hexRgba(w.color,0.5),statusLabel:st.label,statusColor:st.color,statusTint:this.hexRgba(st.color,0.16),
+        left:(d.start/13*100).toFixed(1)+'%',width:((d.end-d.start)/13*100).toFixed(1)+'%',
+        cardBorder:s.selProc===d.id?w.color:'transparent',
+        onClick:()=>this.set('selProc',d.id)} }
+    const procBars=this.procDefs.map(mkProc)
+    const procList=[...procBars].sort((a,b)=>b.imp-a.imp)
+    const procOpenCount=this.procDefs.filter(p=>p.status==='open').length
+    const timelineTicks=['20 июн','24','27','30','2 июл','сег'].map(l=>({label:l}))
+    // relations graph
+    const posOf=id=>this.procDefs.find(p=>p.id===id).pos
+    const relStyle={causal:{color:'#f2603f',dash:'0'},follow_up:{color:'#7b6cf2',dash:'7 5'},related:{color:'#3d86e0',dash:'2 6'},same_entity:{color:'#24b3c9',dash:'0'}}
+    const edges=this.edgeDefs.map(e=>{ const a=posOf(e.s),b=posOf(e.t); const rs=relStyle[e.rel]
+      return {x1:a[0],y1:a[1],x2:b[0],y2:b[1],color:rs.color,dash:rs.dash} })
+    const nodes=this.procDefs.map(p=>{ const w=this.weather(p.imp); const r=14+p.count*2; const sel=s.selProc===p.id
+      return {id:p.id,cx:p.pos[0],cy:p.pos[1],r,rGlow:r+11,glow:this.hexRgba(w.color,0.16),fill:w.color,
+        stroke:sel?'#ffffff':this.hexRgba(w.color,0.65),sw:sel?3:1.5,label:p.short,imp:p.imp,ty:p.pos[1]+r+16,onClick:()=>this.set('selProc',p.id)} })
+    const graphLegend=[{color:'#f2603f',label:'причинно-следственная'},{color:'#7b6cf2',label:'продолжение'},{color:'#3d86e0',label:'связано'}]
+    const graph={edges,nodes,legend:graphLegend}
+    // right panel
+    const legendScale=[0,1,2,3,4].map(i=>({count:counts[i],color:sevColors[i],label:sevLabels[i],pct:Math.round(counts[i]/maxC*100)+'%'}))
+    const topHazards=[...inbox].sort((a,b)=>b.imp-a.imp).slice(0,3)
+    const selProcObj=s.selProc?mkProc(this.procDefs.find(p=>p.id===s.selProc)):null
+
+    return {
+      themeName,themeIcon,themeLabel,seg,setPhone:()=>this.set('device','phone'),setDesktop:()=>this.set('device','desktop'),
+      toggleTheme:()=>this.set('theme',s.theme==='dark'?'light':'dark'),
+      frame,ui,accentVars,anim1,anim2,shimmerAnim,nav,go,clearedCount,
+      screenTitle:tt[0],screenSub:tt[1],screenSlug:s.screen,
+      ...flags,
+      hero,
+      isThemes,modeSeg,setThemes:()=>this.set('mode','themes'),setAreas:()=>this.set('mode','areas'),
+      themeCards,areaGroups,
+      feedFilters,feedItems,feedEmpty,
+      threads,
+      procBars,procList,procOpenCount,timelineTicks,
+      graph,
+      legendScale,topHazards,
+      hasSelProc:!!selProcObj,selProc:selProcObj,clearSelProc:()=>this.set('selProc',null),
+    }
+  }
+}
+</script>
+</body>
+</html>
