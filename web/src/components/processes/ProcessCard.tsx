@@ -1,43 +1,46 @@
 /**
- * Карточка процесса в списке: заголовок, статус, зона/проект, диапазон дат.
+ * Карточка процесса в списке (морская стилизация funufunu): полоса 6×40px цвета
+ * важности слева, заголовок, summary, справа балл «напора фронта» + счётчик
+ * событий. Рамка выбранной карточки — цвет важности.
  */
 
-import type { Area, Process, Project } from '../../types/api'
-import { ProcessStatusBadge } from './ProcessStatusBadge'
+import type { Process } from '../../types/api'
+import { processHeat, weather } from '../../lib/weather'
 
 interface ProcessCardProps {
   process: Process
-  areas: Area[]
-  projects: Project[]
   onOpen: (id: string) => void
+  selected?: boolean
 }
 
-export function ProcessCard({ process, areas, projects, onOpen }: ProcessCardProps) {
-  const area = areas.find((a) => a.id === process.area_id)
-  const project = projects.find((p) => p.id === process.project_id)
+export function ProcessCard({ process, onOpen, selected }: ProcessCardProps) {
+  const heat = processHeat(process.item_count)
+  const color = weather(heat).color
 
   return (
-    <button
+    <div
       onClick={() => onOpen(process.id)}
-      className="w-full rounded-lg border border-neutral-800 bg-neutral-900 p-4 text-left transition-colors hover:bg-neutral-800/60"
+      style={{
+        cursor: 'pointer', borderRadius: 16, background: 'var(--surface)', boxShadow: 'var(--shadow-card)',
+        padding: '14px 15px', display: 'flex', alignItems: 'center', gap: 12,
+        border: `1px solid ${selected ? color : 'transparent'}`,
+      }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 flex-1 truncate font-medium text-neutral-100">
+      <span style={{ width: 6, height: 40, borderRadius: 3, background: color, flex: 'none' }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ font: "600 14px/1.2 'Instrument Sans',sans-serif", color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {process.title ?? '(без названия)'}
-        </h3>
-        <ProcessStatusBadge status={process.status} />
+        </div>
+        {process.summary && (
+          <div style={{ font: "400 12px/1.38 'Instrument Sans',sans-serif", color: 'var(--ink2)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {process.summary}
+          </div>
+        )}
       </div>
-
-      {process.summary && <p className="mt-1 truncate text-sm text-neutral-400">{process.summary}</p>}
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
-        {area && <span className="rounded bg-neutral-800 px-1.5 py-0.5">{area.name}</span>}
-        {project && <span className="rounded bg-neutral-800 px-1.5 py-0.5">{project.name}</span>}
-        <span>{process.item_count} элементов</span>
-        <span>начат {new Date(process.started_at).toLocaleDateString('ru-RU')}</span>
-        <span>активность {new Date(process.last_activity_at).toLocaleDateString('ru-RU')}</span>
-        {process.ended_at && <span>завершён {new Date(process.ended_at).toLocaleDateString('ru-RU')}</span>}
+      <div style={{ textAlign: 'right', flex: 'none' }}>
+        <div className="font-mono" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1, color }}>{heat}</div>
+        <div className="font-mono" style={{ fontSize: 10, fontWeight: 500, color: 'var(--ink3)', marginTop: 5 }}>{process.item_count} соб.</div>
       </div>
-    </button>
+    </div>
   )
 }

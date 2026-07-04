@@ -1,5 +1,7 @@
 /**
- * Экран групп/тредов: раскрывающиеся треды с вложенными Item.
+ * Экран «Треды» — раскрывающиеся треды (Group) со вложенными StormCard.
+ * Морская стилизация funufunu: контейнер 720px, заголовок-прогноз, пилюли-фильтр
+ * по статусу, карточки-треды с иконкой «течение».
  */
 
 import { useState } from 'react'
@@ -9,6 +11,7 @@ import { useProjects } from '../hooks/useProjects'
 import { useInfiniteScrollTrigger } from '../hooks/useInfiniteScrollTrigger'
 import { GroupCard } from '../components/groups/GroupCard'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
+import { hexRgba } from '../lib/weather'
 import type { ItemStatus } from '../types/api'
 
 const STATUS_OPTIONS: { value: ItemStatus | ''; label: string }[] = [
@@ -16,7 +19,7 @@ const STATUS_OPTIONS: { value: ItemStatus | ''; label: string }[] = [
   { value: 'snoozed', label: 'Отложено' },
   { value: 'done', label: 'Сделано' },
   { value: 'dismissed', label: 'Отклонено' },
-  { value: '', label: 'Все статусы' },
+  { value: '', label: 'Все' },
 ]
 
 export function GroupsPage() {
@@ -36,19 +39,31 @@ export function GroupsPage() {
   const projects = projectsResult.data ?? []
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4">
-      <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 p-3">
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as ItemStatus | '')}
-          className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1.5 text-sm text-neutral-200"
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '16px 16px 90px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <h1 className="font-display" style={{ margin: 0, fontSize: 27, fontWeight: 700, color: 'var(--ink)' }}>Треды</h1>
+        <span className="font-mono" style={{ fontSize: 12, color: 'var(--ink3)' }}>сгруппировано</span>
+      </div>
+
+      {/* Пилюли-фильтр по статусу. */}
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+        {STATUS_OPTIONS.map((opt) => {
+          const active = status === opt.value
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setStatus(opt.value)}
+              style={{
+                padding: '7px 13px', borderRadius: 999, cursor: 'pointer', border: 'none',
+                background: active ? hexRgba('#37c0d4', 0.16) : 'var(--surface)',
+                color: active ? 'var(--accent)' : 'var(--ink2)',
+                font: "600 12px/1 'Instrument Sans',sans-serif",
+              }}
+            >
               {opt.label}
-            </option>
-          ))}
-        </select>
+            </button>
+          )
+        })}
       </div>
 
       {groupsResult.isLoading && <LoadingState label="Загружаем треды..." />}
@@ -61,17 +76,18 @@ export function GroupsPage() {
       )}
 
       {!groupsResult.isLoading && !groupsResult.isError && groups.length === 0 && (
-        <EmptyState message="Треды не найдены" />
+        <EmptyState message="Штиль — тредов нет." />
       )}
 
       {groups.length > 0 && (
-        <div className="space-y-3">
-          {groups.map((group) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {groups.map((group, i) => (
             <GroupCard
               key={group.id}
               group={group}
               areas={areas}
               projects={projects}
+              defaultOpen={i === 0}
               pendingItemId={patchMutation.isPending ? patchMutation.variables?.id : undefined}
               onDone={(id) => patchMutation.mutate({ id, patch: { status: 'done' } })}
               onDismiss={(id) => patchMutation.mutate({ id, patch: { status: 'dismissed' } })}

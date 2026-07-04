@@ -72,6 +72,15 @@ export function areaColor(name?: string | null, color?: string | null): string {
   return '#8098a2'
 }
 
+/**
+ * У процессов нет собственной важности в API — оцениваем «напор фронта» по числу
+ * событий: чем больше сообщений в процессе, тем сильнее шторм. Монотонная кривая
+ * 0–100 без насыщения, чтобы раскрасить процессы по морской шкале погоды.
+ */
+export function processHeat(itemCount: number): number {
+  return Math.round(100 * (1 - Math.exp(-Math.max(0, itemCount) / 20)))
+}
+
 // Статусы процессов → подпись + цвет.
 export const PROCESS_STATUS: Record<string, { label: string; color: string }> = {
   open: { label: 'активен', color: '#3fbf8f' },

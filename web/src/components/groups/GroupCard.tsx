@@ -1,11 +1,14 @@
 /**
- * Раскрывающийся тред (Group) со вложенными Item.
+ * Раскрывающийся тред (Group) в морской стилизации funufunu. Заголовок с иконкой
+ * «течение» (кольцо + точка цвета погоды), строка «источник · N сообщ. · время»,
+ * макс. балл, caret. Раскрытие — вложенные StormCard + «+ ещё N в этом треде».
  */
 
 import { useState } from 'react'
 import type { Area, Group, Project } from '../../types/api'
-import { ImportanceBadge } from '../common/ImportanceBadge'
-import { ItemCard } from '../items/ItemCard'
+import { weather } from '../../lib/weather'
+import { formatAgo } from '../../lib/datetime'
+import { StormCard } from '../items/StormCard'
 
 interface GroupCardProps {
   group: Group
@@ -16,6 +19,7 @@ interface GroupCardProps {
   onSnooze: (id: string, until: string) => void
   onReassign: (id: string, patch: { area_id?: string; project_id?: string }) => void
   pendingItemId?: string
+  defaultOpen?: boolean
 }
 
 export function GroupCard({
@@ -27,36 +31,48 @@ export function GroupCard({
   onSnooze,
   onReassign,
   pendingItemId,
+  defaultOpen,
 }: GroupCardProps) {
-  const [expanded, setExpanded] = useState(false)
-  const area = areas.find((a) => a.id === group.area_id)
-  const project = projects.find((p) => p.id === group.project_id)
+  const [expanded, setExpanded] = useState(!!defaultOpen)
+  const w = weather(group.importance)
+  const sources = [...new Set(group.items.flatMap((i) => i.source_apps))]
+  const src = sources[0]
+  const more = group.item_count - group.items.length
 
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900">
+    <div style={{ borderRadius: 18, background: 'var(--surface)', overflow: 'hidden', boxShadow: 'var(--shadow-card)' }}>
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 14,
+          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+        }}
       >
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-medium text-neutral-100">{group.title}</h3>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
-            <span>{group.item_count} сообщений</span>
-            {area && <span className="rounded bg-neutral-800 px-1.5 py-0.5">{area.name}</span>}
-            {project && <span className="rounded bg-neutral-800 px-1.5 py-0.5">{project.name}</span>}
-            <span>обновлено {new Date(group.last_activity_at).toLocaleString('ru-RU')}</span>
+        {/* Иконка «течение»: кольцо + точка цвета погоды. */}
+        <span
+          style={{
+            width: 32, height: 32, borderRadius: '50%', border: `2px solid ${w.color}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
+          }}
+        >
+          <span style={{ width: 11, height: 11, borderRadius: '50%', background: w.color }} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: "600 14px/1.2 'Instrument Sans',sans-serif", color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {group.title}
+          </div>
+          <div className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+            {src ? `${src} · ` : ''}{group.item_count} сообщ. · {formatAgo(group.last_activity_at)}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ImportanceBadge value={group.importance} />
-          <span className="text-neutral-500">{expanded ? '▲' : '▼'}</span>
-        </div>
+        <span className="font-mono" style={{ fontSize: 16, fontWeight: 700, color: w.color }}>{group.importance}</span>
+        <span style={{ color: 'var(--ink3)', fontSize: 12, width: 12, textAlign: 'center' }}>{expanded ? '▾' : '▸'}</span>
       </button>
 
       {expanded && (
-        <div className="space-y-2 border-t border-neutral-800 p-3">
+        <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {group.items.map((item) => (
-            <ItemCard
+            <StormCard
               key={item.id}
               item={item}
               areas={areas}
@@ -68,6 +84,11 @@ export function GroupCard({
               onReassign={onReassign}
             />
           ))}
+          {more > 0 && (
+            <div style={{ textAlign: 'center', font: "500 12px/1 'Instrument Sans',sans-serif", color: 'var(--ink3)', padding: 5 }}>
+              + ещё {more} в этом треде
+            </div>
+          )}
         </div>
       )}
     </div>
