@@ -4,7 +4,7 @@
  * отсортированная сервером по важности. Быстрые действия и свайп — в карточке.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useItems, usePatchItem } from '../hooks/useItems'
 import { useAreas } from '../hooks/useAreas'
 import { useProjects } from '../hooks/useProjects'
@@ -35,9 +35,18 @@ function matchSev(item: Item, key: SevFilter): boolean {
   return rank === { hurricane: 4, storm: 3, waves: 2 }[key]
 }
 
+// Выбор фильтра/сортировки запоминаем между заходами.
+function usePersisted<T extends string>(key: string, fallback: T): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => (localStorage.getItem(key) as T) || fallback)
+  useEffect(() => {
+    localStorage.setItem(key, value)
+  }, [key, value])
+  return [value, setValue]
+}
+
 export function FeedPage() {
-  const [sev, setSev] = useState<SevFilter>('all')
-  const [axis, setAxis] = useState<Axis>('importance')
+  const [sev, setSev] = usePersisted<SevFilter>('aggregat.feed.sev', 'all')
+  const [axis, setAxis] = usePersisted<Axis>('aggregat.feed.axis', 'importance')
   const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 50 }), [])
 
   const itemsResult = useItems(query)
@@ -75,51 +84,56 @@ export function FeedPage() {
         <span className="font-mono" style={{ fontSize: 12, color: 'var(--ink3)' }}>все сообщения</span>
       </div>
 
-      {/* Пилюли-стихии со счётчиками. */}
-      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-        {FILTERS.map((f) => {
-          const active = sev === f.key
-          const count = allItems.filter((i) => matchSev(i, f.key)).length
-          return (
-            <button
-              key={f.key}
-              onClick={() => setSev(f.key)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999,
-                cursor: 'pointer', border: 'none',
-                background: active ? hexRgba(f.color, 0.16) : 'var(--surface)',
-                color: active ? f.color : 'var(--ink2)',
-                font: "600 12px/1 'Instrument Sans',sans-serif",
-              }}
-            >
-              {f.label}
-              <span className="font-mono" style={{ fontSize: 11, opacity: 0.7 }}>{count}</span>
-            </button>
-          )
-        })}
-      </div>
+      {/* Панель управления: фильтр-стихии (крупные пилюли) + сортировка по осям
+          (компактные чипы) сгруппированы вместе, чтобы читались как один блок. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+          {FILTERS.map((f) => {
+            const active = sev === f.key
+            const count = allItems.filter((i) => matchSev(i, f.key)).length
+            // Пустые стихии не показываем — кроме «Всё» и текущей активной.
+            if (count === 0 && f.key !== 'all' && sev !== f.key) return null
+            return (
+              <button
+                key={f.key}
+                onClick={() => setSev(f.key)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999,
+                  cursor: 'pointer', border: 'none',
+                  background: active ? hexRgba(f.color, 0.16) : 'var(--surface)',
+                  color: active ? f.color : 'var(--ink2)',
+                  font: "600 12px/1 'Instrument Sans',sans-serif",
+                }}
+              >
+                {f.label}
+                <span className="font-mono" style={{ fontSize: 11, opacity: 0.7 }}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
 
-      {/* Сортировка по осям: важность / срок / ставки / действие. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-        <span className="font-mono" style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ink3)' }}>Сортировка</span>
-        {AXES.map((a) => {
-          const active = axis === a
-          const c = AXIS_META[a].color
-          return (
-            <button
-              key={a}
-              onClick={() => setAxis(a)}
-              style={{
-                padding: '6px 12px', borderRadius: 9, cursor: 'pointer', border: 'none',
-                background: active ? hexRgba(c, 0.16) : 'var(--surface)',
-                color: active ? c : 'var(--ink2)',
-                font: "600 12px/1 'Instrument Sans',sans-serif",
-              }}
-            >
-              {AXIS_META[a].label}
-            </button>
-          )
-        })}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+          <span className="font-mono" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink3)' }}>Сортировка ↓</span>
+          {AXES.map((a) => {
+            const active = axis === a
+            const c = AXIS_META[a].color
+            return (
+              <button
+                key={a}
+                onClick={() => setAxis(a)}
+                style={{
+                  padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
+                  border: `1px solid ${active ? 'transparent' : 'var(--line)'}`,
+                  background: active ? hexRgba(c, 0.16) : 'transparent',
+                  color: active ? c : 'var(--ink3)',
+                  font: "600 11.5px/1 'Instrument Sans',sans-serif",
+                }}
+              >
+                {AXIS_META[a].label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {itemsResult.isLoading && <LoadingState label="Загружаем ленту..." />}
@@ -136,7 +150,7 @@ export function FeedPage() {
       {items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
           {items.map((item) => (
-            <StormCard key={item.id} {...handlers(item)} />
+            <StormCard key={item.id} {...handlers(item)} axis={axis} />
           ))}
         </div>
       )}

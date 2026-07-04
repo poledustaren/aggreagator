@@ -11,6 +11,7 @@ import { useRef, useState } from 'react'
 import type { Area, Item, Project } from '../../types/api'
 import { areaColor, hexRgba, wavePath, weather } from '../../lib/weather'
 import { formatAbs, formatAgo, formatDue, dueUrgency } from '../../lib/datetime'
+import { AXIS_META, axisScore, type Axis } from '../../lib/axes'
 import { SnoozeMenu } from './SnoozeMenu'
 import { ReassignMenu } from './ReassignMenu'
 
@@ -23,6 +24,8 @@ interface StormCardProps {
   onSnooze: (id: string, until: string) => void
   onReassign: (id: string, patch: { area_id?: string; project_id?: string }) => void
   pending?: boolean
+  /** Активная ось сортировки — показываем её балл на карточке, чтобы порядок был читаем. */
+  axis?: Axis
 }
 
 const SWIPE_THRESHOLD = 100
@@ -36,6 +39,7 @@ export function StormCard({
   onSnooze,
   onReassign,
   pending,
+  axis,
 }: StormCardProps) {
   const [showSnooze, setShowSnooze] = useState(false)
   const [showReassign, setShowReassign] = useState(false)
@@ -170,8 +174,11 @@ export function StormCard({
             </div>
           </div>
 
-          {/* Чипы: источник(и), зона (клик — сменить), действие. */}
+          {/* Чипы: активная ось (если сортируем не по важности), срок, источник(и), зона, действие. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 10 }}>
+            {axis && axis !== 'importance' && !(axis === 'urgency' && item.due_at) && (
+              <AxisChip axis={axis} value={axisScore(item, axis)} />
+            )}
             {item.due_at && <DueChip due={item.due_at} kind={item.due_kind} />}
             {item.source_apps.map((app) => (
               <span
@@ -260,6 +267,24 @@ export function StormCard({
 
 function Dot() {
   return <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--ink3)', flex: 'none' }} />
+}
+
+// Чип активной оси: показывает балл, по которому сейчас идёт сортировка, в её цвете —
+// чтобы порядок карточек читался («почему это выше»). Для оси importance не нужен
+// (её балл — это сам штормовой счёт справа).
+function AxisChip({ axis, value }: { axis: Axis; value: number }) {
+  const { label, color } = AXIS_META[axis]
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 8,
+        font: "600 11px/1 'Instrument Sans',sans-serif", background: hexRgba(color, 0.15), color,
+      }}
+    >
+      {label}
+      <span className="font-mono" style={{ fontWeight: 700 }}>{value}</span>
+    </span>
+  )
 }
 
 const DUE_KIND_ICON: Record<string, string> = { deadline: '⏳', event: '📅', payment: '₽' }
