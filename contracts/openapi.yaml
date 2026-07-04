@@ -283,6 +283,8 @@ components:
         title: { type: string }
         importance: { type: integer, minimum: 0, maximum: 100, description: максимум по Item группы }
         item_count: { type: integer }
+        importance: { type: integer, minimum: 0, maximum: 100, description: важность процесса H7 (пик×свежесть×открытость) }
+        max_importance: { type: integer, minimum: 0, maximum: 100, description: пик важности сообщений процесса }
         area_id: { type: string, format: uuid, nullable: true }
         project_id: { type: string, format: uuid, nullable: true }
         last_activity_at: { type: string, format: date-time }

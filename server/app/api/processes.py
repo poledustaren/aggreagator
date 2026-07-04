@@ -5,7 +5,7 @@ Cursor-пагинация по (last_activity_at DESC, id) — как в groups.
 """
 import base64
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_, select
@@ -65,6 +65,48 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         return datetime.fromisoformat(ts_str), uuid.UUID(id_str)
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный cursor") from exc
+
+
+# ── H7: важность процесса (пик важности × свежесть × открытость) ──
+import math  # noqa: E402
+
+_H7_OPENNESS = {ORMProcessStatus.open: 1.0, ORMProcessStatus.frozen: 0.55, ORMProcessStatus.closed: 0.25}
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _process_importance(max_imp: int, avg_imp: float, count: int, last_activity: datetime, status, now: datetime) -> int:
+    """H7 из промоделированной формулы (веса согласованы с пользователем).
+
+    salience = 0.6·пик + 0.25·среднее + 0.15·min(100, 12·ln(1+N))
+    freshness = exp(-дни_простоя / 7);  openness = {open 1.0, frozen .55, closed .25}
+    """
+    salience = 0.6 * max_imp + 0.25 * avg_imp + 0.15 * min(100.0, 12.0 * math.log(1 + max(0, count)))
+    idle_days = max(0.0, (now - last_activity).total_seconds() / 86400.0)
+    freshness = math.exp(-idle_days / 7.0)
+    openness = _H7_OPENNESS.get(status, 0.5)
+    return round(salience * freshness * openness)
+
+
+async def _load_item_agg(db: AsyncSession, process_ids: list[uuid.UUID]) -> dict:
+    """Пер-процесс агрегаты важности сообщений: pid → (max_imp, avg_imp, count)."""
+    if not process_ids:
+        return {}
+    stmt = (
+        select(Item.process_id, func.max(Item.importance), func.avg(Item.importance), func.count(Item.id))
+        .where(Item.process_id.in_(process_ids))
+        .group_by(Item.process_id)
+    )
+    return {pid: (int(mx or 0), float(av or 0), int(cnt or 0)) for pid, mx, av, cnt in (await db.execute(stmt)).all()}
+
+
+def _attach_importance(schema, agg: dict, now: datetime, p: Process) -> None:
+    """Проставить schema.importance (H7) и max_importance из агрегатов."""
+    mx, av, cnt = agg.get(p.id, (0, 0.0, 0))
+    schema.max_importance = mx
+    schema.importance = _process_importance(mx, av, cnt, p.last_activity_at, p.status, now)
 
 
 def _timeline_end(p: Process) -> datetime | None:
@@ -256,6 +298,7 @@ async def list_processes(
     status_filter: ProcessStatus | None = Query(default=None, alias="status"),
     area_id: uuid.UUID | None = Query(default=None),
     project_id: uuid.UUID | None = Query(default=None),
+    sort: str = Query(default="importance"),  # importance (H7) | recency
     cursor: str | None = Query(default=None),
     limit: int = Query(default=settings.default_page_limit, le=settings.max_page_limit, gt=0),
     device: Device = Depends(get_current_device),
@@ -268,6 +311,26 @@ async def list_processes(
         conditions.append(Process.area_id == area_id)
     if project_id is not None:
         conditions.append(Process.project_id == project_id)
+
+    now = _utc_now()
+
+    # По важности (H7): важность считается из сообщений, поэтому сортировать в SQL нельзя —
+    # берём всех кандидатов по фильтрам, считаем H7, отдаём топ. Курсора нет (топ-N экран).
+    if sort != "recency":
+        base = select(Process)
+        if conditions:
+            base = base.where(and_(*conditions))
+        rows = (await db.execute(base.limit(settings.process_rank_max))).scalars().all()
+        agg = await _load_item_agg(db, [p.id for p in rows])
+        out = []
+        for p in rows:
+            s = ProcessSchema.model_validate(p)
+            _attach_importance(s, agg, now, p)
+            out.append(s)
+        out.sort(key=lambda s: s.importance, reverse=True)
+        return ProcessPage(processes=out[:limit], next_cursor=None)
+
+    # По свежести: прежняя cursor-пагинация + важность проставляем на странице.
     if cursor is not None:
         c_ts, c_id = _decode_cursor(cursor)
         conditions.append(
@@ -276,7 +339,6 @@ async def list_processes(
                 and_(Process.last_activity_at == c_ts, Process.id < c_id),
             )
         )
-
     stmt = select(Process)
     if conditions:
         stmt = stmt.where(and_(*conditions))
@@ -286,12 +348,19 @@ async def list_processes(
     has_more = len(rows) > limit
     page = rows[:limit]
 
+    agg = await _load_item_agg(db, [p.id for p in page])
+    processes = []
+    for p in page:
+        s = ProcessSchema.model_validate(p)
+        _attach_importance(s, agg, now, p)
+        processes.append(s)
+
     next_cursor = None
     if has_more and page:
         last = page[-1]
         next_cursor = _encode_cursor(last.last_activity_at, last.id)
 
-    return ProcessPage(processes=[ProcessSchema.model_validate(p) for p in page], next_cursor=next_cursor)
+    return ProcessPage(processes=processes, next_cursor=next_cursor)
 
 
 @router.get("/processes/{process_id}", response_model=ProcessDetail)
@@ -311,4 +380,10 @@ async def get_process(
     )
     detail = ProcessDetail.model_validate(proc)
     detail.items = [ItemSchema.model_validate(i) for i in items]
+    # H7 из уже загруженных сообщений (без лишнего запроса).
+    imps = [i.importance for i in items]
+    if imps:
+        mx = max(imps)
+        detail.max_importance = mx
+        detail.importance = _process_importance(mx, sum(imps) / len(imps), len(imps), proc.last_activity_at, proc.status, _utc_now())
     return detail

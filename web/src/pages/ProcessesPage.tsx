@@ -11,7 +11,7 @@ import { useInfiniteScrollTrigger } from '../hooks/useInfiniteScrollTrigger'
 import { ProcessCard } from '../components/processes/ProcessCard'
 import { ProcessDetailPanel } from '../components/processes/ProcessDetailPanel'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
-import { PROCESS_STATUS, hexRgba, processHeat, weather } from '../lib/weather'
+import { PROCESS_STATUS, hexRgba, weather } from '../lib/weather'
 import { formatAbsShort } from '../lib/datetime'
 import type { Process, ProcessStatus } from '../types/api'
 
@@ -57,7 +57,7 @@ function FrontsPanel({
       .filter((b) => processEnd(b.p, end) >= start && new Date(b.p.started_at).getTime() <= end)
       .sort((a, b) => a.raw - b.raw)
       .map(({ p, s, e }) => {
-        const heat = processHeat(p.item_count)
+        const heat = p.importance
         const color = weather(heat).color
         const st = PROCESS_STATUS[p.status]
         const left = ((s - start) / span) * 100
@@ -123,7 +123,7 @@ export function ProcessesPage() {
 
   const processes = processesResult.data?.pages.flatMap((p) => p.processes) ?? []
   const sorted = useMemo(
-    () => [...processes].sort((a, b) => processHeat(b.item_count) - processHeat(a.item_count)),
+    () => [...processes].sort((a, b) => b.importance - a.importance),
     [processes],
   )
 

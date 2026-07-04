@@ -23,6 +23,10 @@ class Process(BaseModel):
     last_activity_at: datetime
     ended_at: datetime | None
     item_count: int
+    # Важность процесса (H7): пик важности сообщений × свежесть × открытость.
+    # Считается на лету из сообщений; заменяет прежний «heat по числу событий».
+    importance: int = 0
+    max_importance: int = 0
 
 
 class ProcessDetail(Process):

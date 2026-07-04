@@ -5,7 +5,7 @@
  */
 
 import type { Process } from '../../types/api'
-import { processHeat, weather } from '../../lib/weather'
+import { weather } from '../../lib/weather'
 
 interface ProcessCardProps {
   process: Process
@@ -14,7 +14,7 @@ interface ProcessCardProps {
 }
 
 export function ProcessCard({ process, onOpen, selected }: ProcessCardProps) {
-  const heat = processHeat(process.item_count)
+  const heat = process.importance
   const color = weather(heat).color
 
   return (

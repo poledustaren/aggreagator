@@ -6,7 +6,7 @@
 
 import { useProcess } from '../../hooks/useProcesses'
 import { LoadingState, ErrorState } from '../common/StateViews'
-import { PROCESS_STATUS, processHeat, wavePath, weather } from '../../lib/weather'
+import { PROCESS_STATUS, wavePath, weather } from '../../lib/weather'
 import { formatAbs, formatAgo } from '../../lib/datetime'
 import type { Item } from '../../types/api'
 
@@ -46,7 +46,7 @@ function ItemRow({ item }: { item: Item }) {
 
 export function ProcessDetailPanel({ processId, onClose }: ProcessDetailPanelProps) {
   const { data: process, isLoading, isError, error, refetch } = useProcess(processId)
-  const heat = process ? processHeat(process.item_count) : 0
+  const heat = process ? process.importance : 0
   const color = weather(heat).color
   const st = process ? PROCESS_STATUS[process.status] : null
 

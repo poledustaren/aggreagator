@@ -195,6 +195,8 @@ export interface Process {
   last_activity_at: string
   ended_at: string | null
   item_count: number
+  importance: number // H7: пик важности × свежесть × открытость
+  max_importance: number // пик важности сообщений процесса
 }
 
 export interface ProcessDetail extends Process {
