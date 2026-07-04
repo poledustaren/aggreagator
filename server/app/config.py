@@ -47,7 +47,10 @@ class Settings(BaseSettings):
 
     # Эвристика эскалации: длиннее порога (символов) → hard-модель.
     llm_escalation_char_threshold: int = 280
-    llm_max_tokens: int = 512
+    # Потолок ответа. Кириллица «дорогая» по токенам, а JSON подрос (due_at/due_kind),
+    # поэтому 512 иногда обрезал ответ на полуслове → неразбираемо → нейтральный фолбэк.
+    # 1024 даёт запас, чтобы JSON всегда закрывался.
+    llm_max_tokens: int = 1024
     llm_timeout_seconds: float = 30.0
     # Дефолтная уверенность, если модель не вернула своё значение.
     llm_default_confidence: float = 0.6
