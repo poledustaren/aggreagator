@@ -1,84 +1,111 @@
 /**
- * Главный экран — лента "Важное": Item, отсортированные сервером по важности,
- * с фильтрами и быстрыми действиями прямо в карточке.
+ * Лента — все сообщения инбокса в морской стилизации. Фильтры-пилюли по стихиям
+ * (Всё / Ураган / Шторм / Волны / Спокойно) со счётчиками + StormCard-лента,
+ * отсортированная сервером по важности. Быстрые действия и свайп — в карточке.
  */
 
 import { useMemo, useState } from 'react'
 import { useItems, usePatchItem } from '../hooks/useItems'
 import { useAreas } from '../hooks/useAreas'
 import { useProjects } from '../hooks/useProjects'
-import { useTags } from '../hooks/useTags'
 import { useInfiniteScrollTrigger } from '../hooks/useInfiniteScrollTrigger'
-import { ItemCard } from '../components/items/ItemCard'
-import { DEFAULT_FILTERS, ItemFilters, type FiltersState } from '../components/items/ItemFilters'
+import { StormCard } from '../components/items/StormCard'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
-import type { ItemsQuery } from '../types/api'
+import { hexRgba, weather } from '../lib/weather'
+import type { Item, ItemsQuery } from '../types/api'
 
-function toQuery(filters: FiltersState): ItemsQuery {
-  return {
-    status: filters.status || undefined,
-    area_id: filters.area_id || undefined,
-    project_id: filters.project_id || undefined,
-    tag: filters.tag || undefined,
-    importance_min: filters.importance_min || undefined,
-    from: filters.from ? new Date(filters.from).toISOString() : undefined,
-    limit: 50,
-  }
+// Фильтр по стихиям (rank погоды). 'calm' — Штиль+Рябь (0–40).
+type SevFilter = 'all' | 'hurricane' | 'storm' | 'waves' | 'calm'
+
+const FILTERS: { key: SevFilter; label: string; color: string }[] = [
+  { key: 'all', label: 'Всё', color: '#37c0d4' },
+  { key: 'hurricane', label: 'Ураган', color: '#f2603f' },
+  { key: 'storm', label: 'Шторм', color: '#7b6cf2' },
+  { key: 'waves', label: 'Волны', color: '#3d86e0' },
+  { key: 'calm', label: 'Спокойно', color: '#24b3c9' },
+]
+
+function matchSev(item: Item, key: SevFilter): boolean {
+  if (key === 'all') return true
+  const rank = weather(item.importance).rank
+  if (key === 'calm') return rank <= 1
+  return rank === { hurricane: 4, storm: 3, waves: 2 }[key]
 }
 
 export function FeedPage() {
-  const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS)
-  const query = useMemo(() => toQuery(filters), [filters])
+  const [sev, setSev] = useState<SevFilter>('all')
+  const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 50 }), [])
 
   const itemsResult = useItems(query)
-  const areasResult = useAreas()
-  const projectsResult = useProjects()
-  const tagsResult = useTags()
-  const patchMutation = usePatchItem(query)
+  const areas = useAreas().data ?? []
+  const projects = useProjects().data ?? []
+  const patch = usePatchItem(query)
 
   const sentinelRef = useInfiniteScrollTrigger(
     () => itemsResult.fetchNextPage(),
     itemsResult.hasNextPage === true && !itemsResult.isFetchingNextPage,
   )
 
-  const items = itemsResult.data?.pages.flatMap((p) => p.items) ?? []
-  const areas = areasResult.data ?? []
-  const projects = projectsResult.data ?? []
-  const tags = tagsResult.data ?? []
+  const allItems = (itemsResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox')
+  const items = allItems.filter((i) => matchSev(i, sev))
+
+  const handlers = (item: Item) => ({
+    item,
+    areas,
+    projects,
+    pending: patch.isPending && patch.variables?.id === item.id,
+    onDone: (id: string) => patch.mutate({ id, patch: { status: 'done' as const } }),
+    onDismiss: (id: string) => patch.mutate({ id, patch: { status: 'dismissed' as const } }),
+    onSnooze: (id: string, until: string) => patch.mutate({ id, patch: { status: 'snoozed' as const, snoozed_until: until } }),
+    onReassign: (id: string, p: { area_id?: string; project_id?: string }) => patch.mutate({ id, patch: p }),
+  })
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4">
-      <ItemFilters value={filters} onChange={setFilters} areas={areas} projects={projects} tags={tags} />
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '16px 16px 90px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <h1 className="font-display" style={{ margin: 0, fontSize: 27, fontWeight: 700, color: 'var(--ink)' }}>Лента</h1>
+        <span className="font-mono" style={{ fontSize: 12, color: 'var(--ink3)' }}>все сообщения</span>
+      </div>
+
+      {/* Пилюли-стихии со счётчиками. */}
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+        {FILTERS.map((f) => {
+          const active = sev === f.key
+          const count = allItems.filter((i) => matchSev(i, f.key)).length
+          return (
+            <button
+              key={f.key}
+              onClick={() => setSev(f.key)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999,
+                cursor: 'pointer', border: 'none',
+                background: active ? hexRgba(f.color, 0.16) : 'var(--surface)',
+                color: active ? f.color : 'var(--ink2)',
+                font: "600 12px/1 'Instrument Sans',sans-serif",
+              }}
+            >
+              {f.label}
+              <span className="font-mono" style={{ fontSize: 11, opacity: 0.7 }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
 
       {itemsResult.isLoading && <LoadingState label="Загружаем ленту..." />}
-
       {itemsResult.isError && (
         <ErrorState
           message={itemsResult.error instanceof Error ? itemsResult.error.message : 'Не удалось загрузить ленту'}
           onRetry={() => itemsResult.refetch()}
         />
       )}
-
       {!itemsResult.isLoading && !itemsResult.isError && items.length === 0 && (
-        <EmptyState message="Ничего не найдено — попробуйте изменить фильтры" />
+        <EmptyState message="Штиль — в этой категории пусто." />
       )}
 
       {items.length > 0 && (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
           {items.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              areas={areas}
-              projects={projects}
-              pending={patchMutation.isPending && patchMutation.variables?.id === item.id}
-              onDone={(id) => patchMutation.mutate({ id, patch: { status: 'done' } })}
-              onDismiss={(id) => patchMutation.mutate({ id, patch: { status: 'dismissed' } })}
-              onSnooze={(id, until) =>
-                patchMutation.mutate({ id, patch: { status: 'snoozed', snoozed_until: until } })
-              }
-              onReassign={(id, patch) => patchMutation.mutate({ id, patch })}
-            />
+            <StormCard key={item.id} {...handlers(item)} />
           ))}
         </div>
       )}

@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     junk_lookback_days: int = 30            # окно «памяти» смахнутых для авто-dismiss
     junk_learning_enabled: bool = True      # рубильник всей петли
 
+    # ── Граф связей ──────────────────────────────────────────────────────
+    # Кэш готового графа в памяти: повторные открытия «Связей» без LLM-перегенерации.
+    graph_cache_ttl_seconds: int = 1800     # 30 мин; 0 — кэш выключен
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,10 +1,71 @@
 @import "tailwindcss";
 
-:root {
+/* funufunu — морская стилизация. Палитра — CSS-переменные, тёмная по умолчанию,
+   светлая через [data-theme="light"]. Шрифты — Google Fonts. */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root,
+[data-theme="dark"] {
   color-scheme: dark;
+  --bg: #0a1620;
+  --bg2: #0d1e28;
+  --surface: #122935;
+  --surface2: #173340;
+  --line: rgba(130, 190, 205, 0.12);
+  --ink: #e9f3f6;
+  --ink2: #9db2bb;
+  --ink3: #65808c;
+  --accent: #37c0d4;
+  --accent2: #3d86e0;
+  --glow: rgba(55, 192, 212, 0.22);
+  --shadow-card: 0 14px 30px -18px rgba(0, 8, 16, 0.65);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e8eff2;
+  --bg2: #dfe9ec;
+  --surface: #ffffff;
+  --surface2: #eef5f7;
+  --line: rgba(20, 60, 80, 0.10);
+  --ink: #0c1c26;
+  --ink2: #4a6470;
+  --ink3: #8098a2;
+  --accent: #0f97b0;
+  --accent2: #2a6fdb;
+  --glow: rgba(15, 151, 176, 0.16);
+  --shadow-card: 0 12px 26px -16px rgba(30, 60, 80, 0.14);
+}
+
+html,
+body {
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Instrument Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Семантические шрифтовые классы funufunu. */
+.font-display { font-family: 'Bricolage Grotesque', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Тонкий морской скролл. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+
+/* Герой «Морская сводка» — дрейф облаков и рябь. */
+@keyframes drift { from { transform: translateX(-9%); } to { transform: translateX(9%); } }
+@keyframes drift2 { from { transform: translateX(7%); } to { transform: translateX(-11%); } }
+@keyframes shimmer { from { background-position: 0 0; } to { background-position: 120px 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-drift, .anim-drift2, .anim-shimmer { animation: none !important; }
+}
+
+.anim-drift { animation: drift 15s ease-in-out infinite alternate; }
+.anim-drift2 { animation: drift2 19s ease-in-out infinite alternate; }
+.anim-shimmer { animation: shimmer 6s linear infinite; }

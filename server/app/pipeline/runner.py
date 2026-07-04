@@ -27,6 +27,7 @@ from app.models import Area, Classification, Group, Item, Process, ProcessStatus
 from app.models.entities import ItemStatus as ORMItemStatus
 from app.pipeline.classifier import ClassificationResult, Classifier, ClassifyContext, RawNotificationData
 from app.pipeline.composite import CompositeClassifier
+from app.pipeline.dedup import find_duplicate_inbox_item
 from app.pipeline.embeddings import build_embedder
 from app.pipeline.junk_filter import is_similar_to_dismissed
 from app.pipeline.llm_provider import build_provider
@@ -136,6 +137,15 @@ async def _process_one(
     )
 
     classification: ClassificationResult = await classifier.classify(raw_data, ctx)
+
+    # Контент-дедуп: точный повтор уже висящего в inbox уведомления (перевыложен
+    # Android'ом с новым client_id) не создаёт новый Item — привязываем raw к
+    # существующему и освежаем его. Детерминированно, без LLM/эмбеддингов.
+    dup = await find_duplicate_inbox_item(db, classification.title, classification.summary, raw.source_app)
+    if dup is not None:
+        raw.item_id = dup.id
+        dup.updated_at = _utc_now()
+        return
 
     group = await _upsert_group(db, classification)
 

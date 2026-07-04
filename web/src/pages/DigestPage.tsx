@@ -1,17 +1,15 @@
 /**
- * Главная — «Сводка важного». Два режима (фиксируются в localStorage):
- *  - «Темы»: дерево тематик (persistent, ведётся LLM инкрементально), раскрываемое,
- *    с сообщениями внутри; сортировка по новизне/важности.
- *  - «Зоны»: inbox-элементы, сгруппированные по Area (ручная GTD-раскладка).
- * Везде свайп на карточке: вправо — «Готово», влево — «Пежня».
+ * Главная — «Морская сводка». Герой (балл шторма) + два режима (в localStorage):
+ *  - «Темы»: дерево тематик (persistent, ведётся LLM инкрементально), раскрываемое.
+ *  - «Зоны»: inbox-элементы, сгруппированные по Area.
+ * Карточки — StormCard (свайп: вправо готово, влево скрыть). Сортировка по
+ * важности/новизне. Балл и стихии считаются из инбокса на клиенте.
  */
 
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useItems, usePatchItem } from '../hooks/useItems'
 import { useAreas } from '../hooks/useAreas'
 import { useProjects } from '../hooks/useProjects'
-import { useInfiniteScrollTrigger } from '../hooks/useInfiniteScrollTrigger'
 import {
   useThemes,
   buildThemeTree,
@@ -19,9 +17,10 @@ import {
   type ThemeTreeNode,
   type ThemeSort,
 } from '../hooks/useThemes'
-import { ItemCard } from '../components/items/ItemCard'
-import { ImportanceBadge } from '../components/common/ImportanceBadge'
+import { StormCard } from '../components/items/StormCard'
+import { SeaHero } from '../components/digest/SeaHero'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
+import { areaColor, hexRgba, weather } from '../lib/weather'
 import type { Area, Item, ItemsQuery } from '../types/api'
 
 type Mode = 'themes' | 'areas'
@@ -38,8 +37,8 @@ function usePersisted<T extends string>(key: string, fallback: T): [T, (v: T) =>
   return [value, set]
 }
 
-// Небольшой сегмент-переключатель.
-function Segmented<T extends string>({
+// Сегмент-переключатель в стиле funufunu (активный — заливка accent).
+function ModeSeg<T extends string>({
   value,
   options,
   onChange,
@@ -49,40 +48,72 @@ function Segmented<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-neutral-800 p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-md px-3 py-1 text-sm ${
-            value === o.value ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div style={{ display: 'flex', gap: 8 }}>
+      {options.map((o) => {
+        const active = value === o.value
+        return (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            style={{
+              font: "600 12px/1 'Instrument Sans',sans-serif",
+              padding: '9px 18px',
+              borderRadius: 11,
+              border: 'none',
+              cursor: 'pointer',
+              background: active ? 'var(--accent)' : 'var(--surface)',
+              color: active ? '#07141c' : 'var(--ink2)',
+            }}
+          >
+            {o.label}
+          </button>
+        )
+      })}
     </div>
   )
+}
+
+// Карточки/действия для StormCard, привязанные к конкретному query.
+function useCardActions(query: ItemsQuery) {
+  const areas = useAreas().data ?? []
+  const projects = useProjects().data ?? []
+  const patch = usePatchItem(query)
+  const handlers = (item: Item) => ({
+    item,
+    areas,
+    projects,
+    pending: patch.isPending && patch.variables?.id === item.id,
+    onDone: (id: string) => patch.mutate({ id, patch: { status: 'done' } }),
+    onDismiss: (id: string) => patch.mutate({ id, patch: { status: 'dismissed' } }),
+    onSnooze: (id: string, until: string) => patch.mutate({ id, patch: { status: 'snoozed', snoozed_until: until } }),
+    onReassign: (id: string, p: { area_id?: string; project_id?: string }) => patch.mutate({ id, patch: p }),
+  })
+  return { areas, handlers }
 }
 
 export function DigestPage() {
   const [mode, setMode] = usePersisted<Mode>(MODE_KEY, 'themes')
   const [sort, setSort] = usePersisted<ThemeSort>(SORT_KEY, 'importance')
 
+  // Общий срез инбокса для героя (балл шторма + стихии).
+  const heroQuery = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 200 }), [])
+  const heroResult = useItems(heroQuery)
+  const heroItems = useMemo(
+    () => (heroResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox'),
+    [heroResult.data],
+  )
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-neutral-100">Сводка важного</h1>
-          <p className="mt-0.5 text-sm text-neutral-500">свайп вправо — готово, влево — пежня</p>
-        </div>
-        <Link to="/feed" className="shrink-0 text-sm text-neutral-400 hover:text-neutral-200">
-          Вся лента →
-        </Link>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '16px 16px 90px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <h1 className="font-display" style={{ margin: 0, fontSize: 27, fontWeight: 700, color: 'var(--ink)' }}>Сводка</h1>
+        <span className="font-mono" style={{ fontSize: 12, color: 'var(--ink3)' }}>важное сейчас</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented
+      <SeaHero items={heroItems} />
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' }}>
+        <ModeSeg
           value={mode}
           onChange={setMode}
           options={[
@@ -90,17 +121,17 @@ export function DigestPage() {
             { value: 'areas', label: 'Зоны' },
           ]}
         />
-        <Segmented
+        <ModeSeg
           value={sort}
           onChange={setSort}
           options={[
-            { value: 'importance', label: 'По важности' },
-            { value: 'recency', label: 'По новизне' },
+            { value: 'importance', label: 'Важность' },
+            { value: 'recency', label: 'Новизна' },
           ]}
         />
       </div>
 
-      {mode === 'themes' ? <ThemesDigest sort={sort} /> : <AreasDigest sort={sort} />}
+      {mode === 'themes' ? <ThemesDigest sort={sort} /> : <AreasDigest sort={sort} heroItems={heroItems} loading={heroResult.isLoading} error={heroResult.isError} />}
     </div>
   )
 }
@@ -127,34 +158,36 @@ function ThemesDigest({ sort }: { sort: ThemeSort }) {
   if (withInbox.length === 0) return <EmptyState message="Всё разобрано 🎉 Ничего важного в темах." />
 
   return (
-    <div className="space-y-2">
-      {withInbox.map((node) => (
-        <ThemeNodeView key={node.id} node={node} sort={sort} level={0} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {withInbox.map((node, i) => (
+        <ThemeNodeView key={node.id} node={node} sort={sort} level={0} defaultOpen={i === 0} />
       ))}
     </div>
   )
 }
 
-function ThemeNodeView({ node, sort, level }: { node: ThemeTreeNode; sort: ThemeSort; level: number }) {
-  const [open, setOpen] = useState(level === 0 && node.rollupInbox <= 8)
+function ThemeNodeView({ node, sort, level, defaultOpen }: { node: ThemeTreeNode; sort: ThemeSort; level: number; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(!!defaultOpen && node.rollupInbox <= 8)
   const children = node.children.filter((c) => c.rollupInbox > 0)
+  const w = weather(node.rollupMaxImportance)
 
-  return (
-    <div className={level > 0 ? 'ml-3 border-l border-neutral-800 pl-3' : ''}>
+  const body = (
+    <div style={{ borderRadius: 18, overflow: 'hidden', background: 'var(--surface)', boxShadow: level === 0 ? 'var(--shadow-card)' : 'none' }}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-neutral-900"
+        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '13px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
       >
-        <span className="w-4 shrink-0 text-neutral-500">{open ? '▾' : '▸'}</span>
-        <span className="min-w-0 flex-1 truncate font-medium text-neutral-100">{node.name}</span>
-        <span className="shrink-0 rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-          {node.rollupInbox}
-        </span>
-        <ImportanceBadge value={node.rollupMaxImportance} />
+        <span style={{ width: 9, height: 27, borderRadius: 4, background: w.color, flex: 'none' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: "600 14px/1.2 'Instrument Sans',sans-serif", color: 'var(--ink)' }}>{node.name}</div>
+          <div className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>{node.rollupInbox} сообщ.</div>
+        </div>
+        <span className="font-mono" style={{ fontSize: 10, fontWeight: 700, color: w.color, padding: '4px 9px', borderRadius: 999, background: hexRgba(w.color, 0.14) }}>{w.label}</span>
+        <span className="font-mono" style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink2)', width: 26, textAlign: 'right' }}>{node.rollupMaxImportance}</span>
+        <span style={{ color: 'var(--ink3)', fontSize: 12, width: 12, textAlign: 'center' }}>{open ? '▾' : '▸'}</span>
       </button>
-
       {open && (
-        <div className="mt-1 space-y-2">
+        <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {children.map((c) => (
             <ThemeNodeView key={c.id} node={c} sort={sort} level={level + 1} />
           ))}
@@ -163,33 +196,22 @@ function ThemeNodeView({ node, sort, level }: { node: ThemeTreeNode; sort: Theme
       )}
     </div>
   )
+
+  return level > 0 ? <div style={{ marginLeft: 4 }}>{body}</div> : body
 }
 
 // Сообщения конкретной темы (ленивая загрузка при раскрытии).
 function ThemeItems({ themeId }: { themeId: string }) {
   const query = useMemo<ItemsQuery>(() => ({ theme_id: themeId, status: 'inbox', limit: 50 }), [themeId])
   const itemsResult = useItems(query)
-  const areas = useAreas().data ?? []
-  const projects = useProjects().data ?? []
-  const patchMutation = usePatchItem(query)
-
+  const { handlers } = useCardActions(query)
   const items = (itemsResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox')
 
   if (itemsResult.isLoading) return <LoadingState label="Загружаем..." />
   return (
-    <div className="space-y-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {items.map((item) => (
-        <ItemCard
-          key={item.id}
-          item={item}
-          areas={areas}
-          projects={projects}
-          pending={patchMutation.isPending && patchMutation.variables?.id === item.id}
-          onDone={(id) => patchMutation.mutate({ id, patch: { status: 'done' } })}
-          onDismiss={(id) => patchMutation.mutate({ id, patch: { status: 'dismissed' } })}
-          onSnooze={(id, until) => patchMutation.mutate({ id, patch: { status: 'snoozed', snoozed_until: until } })}
-          onReassign={(id, patch) => patchMutation.mutate({ id, patch })}
-        />
+        <StormCard key={item.id} {...handlers(item)} />
       ))}
     </div>
   )
@@ -198,6 +220,7 @@ function ThemeItems({ themeId }: { themeId: string }) {
 // ─────────────────────────── Режим «Зоны» ───────────────────────────
 
 interface AreaGroup {
+  key: string
   area: Area | null
   items: Item[]
 }
@@ -207,10 +230,17 @@ function groupByArea(items: Item[], areas: Area[], sort: ThemeSort): AreaGroup[]
   const NONE = '∅'
   for (const item of items) {
     const key = item.area_id ?? NONE
-    if (!byId.has(key)) byId.set(key, { area: areas.find((a) => a.id === item.area_id) ?? null, items: [] })
+    if (!byId.has(key)) byId.set(key, { key, area: areas.find((a) => a.id === item.area_id) ?? null, items: [] })
     byId.get(key)!.items.push(item)
   }
   const groups = [...byId.values()]
+  for (const g of groups) {
+    g.items.sort((a, b) =>
+      sort === 'importance'
+        ? b.importance - a.importance
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )
+  }
   const score = (g: AreaGroup) =>
     sort === 'importance'
       ? Math.max(...g.items.map((i) => i.importance), 0)
@@ -218,64 +248,34 @@ function groupByArea(items: Item[], areas: Area[], sort: ThemeSort): AreaGroup[]
   return groups.sort((a, b) => score(b) - score(a))
 }
 
-function AreasDigest({ sort }: { sort: ThemeSort }) {
-  const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 50 }), [])
-  const itemsResult = useItems(query)
-  const areas = useAreas().data ?? []
-  const projects = useProjects().data ?? []
-  const patchMutation = usePatchItem(query)
+function AreasDigest({ sort, heroItems, loading, error }: { sort: ThemeSort; heroItems: Item[]; loading: boolean; error: boolean }) {
+  const query = useMemo<ItemsQuery>(() => ({ status: 'inbox', limit: 200 }), [])
+  const { areas, handlers } = useCardActions(query)
+  const groups = useMemo(() => groupByArea(heroItems, areas, sort), [heroItems, areas, sort])
 
-  const sentinelRef = useInfiniteScrollTrigger(
-    () => itemsResult.fetchNextPage(),
-    itemsResult.hasNextPage === true && !itemsResult.isFetchingNextPage,
-  )
-
-  const items = (itemsResult.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => i.status === 'inbox')
-  const groups = useMemo(() => groupByArea(items, areas, sort), [items, areas, sort])
-
-  if (itemsResult.isLoading) return <LoadingState label="Собираем сводку..." />
-  if (itemsResult.isError) {
-    return (
-      <ErrorState
-        message={itemsResult.error instanceof Error ? itemsResult.error.message : 'Не удалось загрузить сводку'}
-        onRetry={() => itemsResult.refetch()}
-      />
-    )
-  }
-  if (items.length === 0) return <EmptyState message="Всё разобрано 🎉 Ничего важного в очереди." />
+  if (loading) return <LoadingState label="Собираем сводку..." />
+  if (error) return <ErrorState message="Не удалось загрузить сводку" />
+  if (heroItems.length === 0) return <EmptyState message="Всё разобрано 🎉 Ничего важного в очереди." />
 
   return (
-    <div className="space-y-5">
-      {groups.map((group) => (
-        <section key={group.area?.id ?? 'none'} className="space-y-2">
-          <h2
-            className="text-sm font-medium uppercase tracking-wide text-neutral-500"
-            style={group.area?.color ? { color: group.area.color } : undefined}
-          >
-            {group.area?.name ?? 'Без зоны'}
-            <span className="ml-2 text-neutral-600">{group.items.length}</span>
-          </h2>
-          <div className="space-y-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {groups.map((group) => {
+        const color = group.area ? areaColor(group.area.name, group.area.color) : '#8098a2'
+        return (
+          <section key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+              <h3 className="font-mono" style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: '.09em', textTransform: 'uppercase', color }}>
+                {group.area?.name ?? 'Без зоны'}
+              </h3>
+              <span className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)' }}>{group.items.length}</span>
+            </div>
             {group.items.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                areas={areas}
-                projects={projects}
-                pending={patchMutation.isPending && patchMutation.variables?.id === item.id}
-                onDone={(id) => patchMutation.mutate({ id, patch: { status: 'done' } })}
-                onDismiss={(id) => patchMutation.mutate({ id, patch: { status: 'dismissed' } })}
-                onSnooze={(id, until) =>
-                  patchMutation.mutate({ id, patch: { status: 'snoozed', snoozed_until: until } })
-                }
-                onReassign={(id, patch) => patchMutation.mutate({ id, patch })}
-              />
+              <StormCard key={item.id} {...handlers(item)} />
             ))}
-          </div>
-        </section>
-      ))}
-      <div ref={sentinelRef} />
-      {itemsResult.isFetchingNextPage && <LoadingState label="Догружаем..." />}
+          </section>
+        )
+      })}
     </div>
   )
 }

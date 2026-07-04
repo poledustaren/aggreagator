@@ -248,8 +248,10 @@ export function fetchProcessTimeline(from?: string, to?: string): Promise<Proces
 }
 
 // Граф связей: LLM на лету (запрос может занимать несколько секунд), 503 если LLM выключен.
-export function fetchProcessGraph(from: string, to: string): Promise<ProcessGraph> {
-  return request<ProcessGraph>('/processes/graph', { query: { from, to } })
+export function fetchProcessGraph(from: string, to: string, refresh = false): Promise<ProcessGraph> {
+  return request<ProcessGraph>('/processes/graph', {
+    query: refresh ? { from, to, refresh: 'true' } : { from, to },
+  })
 }
 
 // ---------- Stats ----------

@@ -37,6 +37,19 @@ settings = get_settings()
 # Максимум процессов на анализ связей за один запрос (ограничение токенов LLM).
 _GRAPH_MAX_PROCESSES = 24
 
+# Кэш графа связей: LLM-анализ дорогой (до минуты), а результат для одного окна
+# меняется медленно. Держим готовый ProcessGraph в памяти по ключу окна с TTL —
+# повторные открытия «Связей» отдаются мгновенно, без LLM-перегенерации.
+# Параметр ?refresh=true форсирует пересчёт. Кэш per-worker (uvicorn 1 воркер),
+# сбрасывается на рестарте — это ок.
+import time as _time  # noqa: E402
+
+_graph_cache: dict[str, tuple[float, "ProcessGraph"]] = {}
+
+
+def _graph_cache_key(from_: datetime | None, to: datetime | None) -> str:
+    return f"{from_.isoformat() if from_ else '-'}|{to.isoformat() if to else '-'}"
+
 _CURSOR_SEP = "|"
 
 
@@ -144,10 +157,22 @@ async def _windowed_entries(
 async def processes_graph(
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = Query(default=None),
+    refresh: bool = Query(default=False),
     device: Device = Depends(get_current_device),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessGraph:
-    """Раздел «Связи»: процессы в окне → дерево тем + связи с аргументацией (LLM на лету)."""
+    """Раздел «Связи»: процессы в окне → дерево тем + связи с аргументацией.
+
+    Результат кэшируется в памяти на graph_cache_ttl_seconds — повторные открытия
+    отдаются мгновенно, без LLM-перегенерации. ?refresh=true форсирует пересчёт.
+    """
+    cache_key = _graph_cache_key(from_, to)
+    ttl = settings.graph_cache_ttl_seconds
+    if not refresh and ttl > 0:
+        cached = _graph_cache.get(cache_key)
+        if cached is not None and (_time.monotonic() - cached[0]) < ttl:
+            return cached[1]
+
     llm = build_provider(settings)
     if llm is None:
         raise HTTPException(
@@ -157,7 +182,9 @@ async def processes_graph(
 
     agg = await _window_item_agg(db, from_, to)
     if not agg:
-        return ProcessGraph(window_from=from_, window_to=to, nodes=[], themes=[], edges=[])
+        empty = ProcessGraph(window_from=from_, window_to=to, nodes=[], themes=[], edges=[])
+        _graph_cache[cache_key] = (_time.monotonic(), empty)
+        return empty
 
     # Берём процессы окна, приоритет — по числу сообщений в окне (важные крупнее).
     ordered_ids = sorted(agg.keys(), key=lambda pid: agg[pid][2], reverse=True)
@@ -208,7 +235,9 @@ async def processes_graph(
     for n in nodes:
         n.theme = theme_of.get(n.id)
 
-    return ProcessGraph(window_from=from_, window_to=to, nodes=nodes, themes=themes, edges=edges, truncated=truncated)
+    graph = ProcessGraph(window_from=from_, window_to=to, nodes=nodes, themes=themes, edges=edges, truncated=truncated)
+    _graph_cache[cache_key] = (_time.monotonic(), graph)
+    return graph
 
 
 @router.post("/processes/freeze")

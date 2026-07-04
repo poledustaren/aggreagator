@@ -76,17 +76,29 @@ export function RelationsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
-      <div>
-        <h1 className="text-lg font-semibold text-neutral-100">Связи</h1>
-        <p className="text-sm text-neutral-500">
-          Граф процессов в выбранном окне: узлы — процессы, рёбра — связи с LLM-аргументацией.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>Связи</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--ink2)' }}>
+            Каждый узел — процесс. Линии — связи: что чему причина, что за чем следует.
+            Граф сохраняется и открывается мгновенно; «Обновить» пересчитывает его заново.
+          </p>
+        </div>
+        <button
+          onClick={() => graphResult.regenerate()}
+          disabled={graphResult.regenerating || graphResult.isPending}
+          className="font-mono shrink-0 rounded-lg px-3 py-2 text-xs disabled:opacity-50"
+          style={{ background: 'var(--surface2)', color: 'var(--ink2)', border: 'none' }}
+          title="Пересчитать граф заново (обход кэша)"
+        >
+          {graphResult.regenerating ? 'Считаем…' : '↻ Обновить'}
+        </button>
       </div>
 
       <WindowPicker value={timeWindow} onChange={handleWindowChange} />
 
       {graphResult.isPending && !isPaused && (
-        <LoadingState label="Анализируем связи (LLM думает, это может занять до минуты)..." />
+        <LoadingState label="Строим граф связей (первый раз — до минуты, дальше из кэша мгновенно)..." />
       )}
 
       {isPaused && (
