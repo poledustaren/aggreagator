@@ -34,9 +34,6 @@ from app.schemas.process_graph import GraphEdge, GraphNode, GraphTheme, ProcessG
 router = APIRouter(tags=["processes"])
 settings = get_settings()
 
-# Максимум процессов на анализ связей за один запрос (ограничение токенов LLM).
-_GRAPH_MAX_PROCESSES = 24
-
 # Кэш графа связей: LLM-анализ дорогой (до минуты), а результат для одного окна
 # меняется медленно. Держим готовый ProcessGraph в памяти по ключу окна с TTL —
 # повторные открытия «Связей» отдаются мгновенно, без LLM-перегенерации.
@@ -239,8 +236,9 @@ async def processes_graph(
 
     # Берём процессы окна, приоритет — по числу сообщений в окне (важные крупнее).
     ordered_ids = sorted(agg.keys(), key=lambda pid: agg[pid][2], reverse=True)
-    truncated = len(ordered_ids) > _GRAPH_MAX_PROCESSES
-    ordered_ids = ordered_ids[:_GRAPH_MAX_PROCESSES]
+    max_procs = settings.graph_max_processes
+    truncated = len(ordered_ids) > max_procs
+    ordered_ids = ordered_ids[:max_procs]
 
     procs = (await db.execute(select(Process).where(Process.id.in_(ordered_ids)))).scalars().all()
     by_id = {p.id: p for p in procs}

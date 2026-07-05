@@ -129,7 +129,8 @@ export function RelationsPage() {
         <>
           {data.truncated && (
             <div className="font-mono" style={{ borderRadius: 12, padding: '9px 13px', fontSize: 12, color: '#e0a95a', background: hexRgba('#e0a95a', 0.12) }}>
-              В окне процессов больше лимита анализа — показаны 24 крупнейших (по числу сообщений).
+              В окне процессов больше лимита анализа — показаны {data.nodes.length} крупнейших (по числу сообщений).
+              Сузьте окно, чтобы увидеть остальные.
             </div>
           )}
 

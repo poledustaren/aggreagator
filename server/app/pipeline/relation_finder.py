@@ -103,9 +103,13 @@ class RelationFinder:
             "ПАРЫ-КАНДИДАТЫ (похожи по смыслу):\n" + "\n".join(pair_lines) + "\n"
         )
 
+        # Потолок ответа растёт с числом процессов: больше процессов → больше тем и
+        # рёбер в JSON. Иначе на крупном окне ответ обрежется и распарсится в пустоту.
+        max_tokens = min(8192, max(4096, len(procs) * 140))
+
         try:
             text = await self._llm.complete(
-                model=self._model(), system=_SYSTEM, prompt=prompt, max_tokens=4096
+                model=self._model(), system=_SYSTEM, prompt=prompt, max_tokens=max_tokens
             )
         except Exception:
             logger.exception("LLM-анализ связей не удался")
