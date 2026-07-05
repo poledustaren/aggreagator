@@ -14,6 +14,7 @@ import { RelationsTimeline } from '../components/relations/RelationsTimeline'
 import { RelationsLegend } from '../components/relations/RelationsLegend'
 import { SelectionPanel, type Selection } from '../components/relations/SelectionPanel'
 import { LoadingState, ErrorState, EmptyState } from '../components/common/StateViews'
+import { hexRgba } from '../lib/weather'
 import 'vis-timeline/styles/vis-timeline-graph2d.css'
 import '../components/processes/vis-timeline-dark.css'
 import type { GraphEdge, GraphNode } from '../types/api'
@@ -79,9 +80,10 @@ export function RelationsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>Связи</h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--ink2)' }}>
-            Узел-циклон — процесс: размер по активности, цвет и балл — по важности. Линии —
-            связи: что чему причина, что за чем следует. Граф кэшируется; «Обновить» пересчитывает.
+          <p className="mt-1 text-sm" style={{ color: 'var(--ink2)', maxWidth: 560 }}>
+            Циклоны собраны в тематические ячейки: <b>halo — тема</b>, ядро и балл — важность,
+            размер — активность. Линии между ячейками — связи вне темы (потенциально
+            неочевидные). Граф кэшируется; «Обновить» пересчитывает.
           </p>
         </div>
         <button
@@ -126,7 +128,7 @@ export function RelationsPage() {
       {!graphResult.isPending && !graphResult.isError && data && data.nodes.length > 0 && (
         <>
           {data.truncated && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+            <div className="font-mono" style={{ borderRadius: 12, padding: '9px 13px', fontSize: 12, color: '#e0a95a', background: hexRgba('#e0a95a', 0.12) }}>
               В окне процессов больше лимита анализа — показаны 24 крупнейших (по числу сообщений).
             </div>
           )}
@@ -139,9 +141,10 @@ export function RelationsPage() {
               onSelectEdge={handleSelectEdge}
               onDeselect={handleDeselect}
               highlightNodeId={selectedNodeId}
+              themeColor={themeColor}
             />
             <div className="space-y-4">
-              <SelectionPanel selection={selection} />
+              <SelectionPanel selection={selection} themeColor={themeColor} />
             </div>
           </div>
 
