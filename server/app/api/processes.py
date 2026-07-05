@@ -50,6 +50,12 @@ _graph_cache: dict[str, tuple[float, "ProcessGraph"]] = {}
 def _graph_cache_key(from_: datetime | None, to: datetime | None) -> str:
     return f"{from_.isoformat() if from_ else '-'}|{to.isoformat() if to else '-'}"
 
+
+def _floor_hour(dt: datetime | None) -> datetime | None:
+    """Округлить границу окна вниз до часа — чтобы кэш графа попадал в течение часа
+    (иначе to=now с миллисекундами делает каждый заход уникальным → LLM каждый раз)."""
+    return dt.replace(minute=0, second=0, microsecond=0) if dt is not None else None
+
 _CURSOR_SEP = "|"
 
 
@@ -208,6 +214,9 @@ async def processes_graph(
     Результат кэшируется в памяти на graph_cache_ttl_seconds — повторные открытия
     отдаются мгновенно, без LLM-перегенерации. ?refresh=true форсирует пересчёт.
     """
+    # Округляем окно до часа — стабильный ключ кэша (клиент шлёт to=now с мс).
+    from_ = _floor_hour(from_)
+    to = _floor_hour(to)
     cache_key = _graph_cache_key(from_, to)
     ttl = settings.graph_cache_ttl_seconds
     if not refresh and ttl > 0:
