@@ -12,6 +12,7 @@ import { formatAbs } from '../../lib/datetime'
 type Selection =
   | { kind: 'node'; node: GraphNode }
   | { kind: 'edge'; edge: GraphEdge; nodes: [GraphNode?, GraphNode?] }
+  | { kind: 'theme'; name: string; isBucket: boolean; nodes: GraphNode[]; connected: { name: string; count: number }[] }
   | null
 
 const card: React.CSSProperties = {
@@ -28,11 +29,64 @@ function StatusPill({ status }: { status: GraphNode['status'] }) {
   )
 }
 
-export function SelectionPanel({ selection, themeColor }: { selection: Selection; themeColor: (t: string | null) => string }) {
+export function SelectionPanel({
+  selection,
+  themeColor,
+  onSelectNode,
+}: {
+  selection: Selection
+  themeColor: (t: string | null) => string
+  onSelectNode?: (id: string) => void
+}) {
   if (!selection) {
     return (
       <div style={{ ...card, color: 'var(--ink3)', font: "400 13px/1.5 'Instrument Sans',sans-serif" }}>
-        Кликните по циклону — покажем детали процесса. Кликните по линии — аргументацию LLM: почему процессы связаны.
+        Кликните по теме — покажем её процессы и связи. Переключитесь на «Процессы» для детального графа.
+      </div>
+    )
+  }
+
+  if (selection.kind === 'theme') {
+    const { name, isBucket, nodes, connected } = selection
+    const tc = isBucket ? '#6f8794' : themeColor(name)
+    const top = [...nodes].sort((a, b) => b.importance - a.importance)
+    return (
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: tc, flex: 'none' }} />
+          <h3 className="font-display" style={{ margin: 0, fontSize: 16, fontWeight: 700, lineHeight: 1.25, color: 'var(--ink)' }}>
+            {isBucket ? 'Разрозненные темы' : name}
+          </h3>
+        </div>
+        <div className="font-mono" style={{ fontSize: 11, color: 'var(--ink3)' }}>
+          {nodes.length} процесс(ов){connected.length > 0 ? ` · связей с темами: ${connected.length}` : ''}
+        </div>
+
+        {connected.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {connected.map((c) => (
+              <span key={c.name} className="font-mono" style={{ fontSize: 10.5, color: 'var(--ink2)', background: 'var(--surface2)', padding: '3px 8px', borderRadius: 999 }}>
+                {c.name} · {c.count}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2, maxHeight: 320, overflowY: 'auto' }}>
+          {top.map((n) => {
+            const w = weather(n.importance)
+            return (
+              <button
+                key={n.id}
+                onClick={(e) => { e.stopPropagation(); onSelectNode?.(n.id) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderRadius: 8 }}
+              >
+                <span className="font-mono" style={{ fontSize: 12, fontWeight: 700, color: w.color, width: 24, flex: 'none', textAlign: 'right' }}>{n.importance}</span>
+                <span style={{ font: "500 12.5px/1.3 'Instrument Sans',sans-serif", color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title ?? '(без названия)'}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
     )
   }

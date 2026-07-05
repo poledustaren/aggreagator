@@ -117,8 +117,8 @@ export function RelationsGraphSvg({ nodes, edges, onSelectNode, onSelectEdge, on
   const layout = useMemo(() => computeLayout(nodes), [nodes])
   const relTypes = useMemo(() => [...new Set(edges.map((e) => e.relation))].filter((r) => RELATION_STYLE[r]), [edges])
 
-  // Подпись показываем только у лидера темы, выбранного и наведённого узла.
-  const labelFor = (id: string, lead: boolean) => lead || highlightNodeId === id || hovered === id
+  // Подпись — только у выбранного и наведённого узла (иначе 38 подписей наезжают).
+  const labelFor = (id: string) => highlightNodeId === id || hovered === id
 
   return (
     <div>
@@ -150,12 +150,12 @@ export function RelationsGraphSvg({ nodes, edges, onSelectNode, onSelectEdge, on
             )
           })}
           {/* Узлы-циклоны. */}
-          {[...layout.values()].map(({ node: nd, x, y, r, theme, lead }) => {
+          {[...layout.values()].map(({ node: nd, x, y, r, theme }) => {
             const w = weather(nd.importance)
             const sel = highlightNodeId === nd.id
             const hov = hovered === nd.id
             const tc = themeColor(theme === NO_THEME ? null : theme)
-            const showLabel = labelFor(nd.id, lead)
+            const showLabel = labelFor(nd.id)
             const label = shortLabel(nd.title)
             const lw = label.length * 6.1 + 12
             return (
