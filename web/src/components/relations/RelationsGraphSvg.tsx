@@ -75,18 +75,20 @@ function computeLayout(nodes: GraphNode[]): Map<string, Placed> {
   const themes = [...groups.keys()].sort((a, b) => groups.get(b)!.length - groups.get(a)!.length)
   const T = themes.length
 
+  // Центры ячеек — сунфлауэр-спираль по всему полю (масштабируется на любое число
+  // тем): крупнейшая тема в центре, дальше по золотому углу наружу. Шаг подобран
+  // так, чтобы самая дальняя ячейка попадала в поле с отступом.
   const anchors = new Map<string, { x: number; y: number }>()
   if (T === 1) {
     anchors.set(themes[0], { x: cx, y: cy })
   } else {
-    const centerTheme = themes[0]
-    anchors.set(centerTheme, { x: cx, y: cy })
-    const ring = themes.slice(1)
-    const rx = W / 2 - PAD - 24
-    const ry = H / 2 - PAD - 24
-    ring.forEach((t, i) => {
-      const a = (2 * Math.PI * i) / ring.length - Math.PI / 2
-      anchors.set(t, { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry })
+    const maxCellR = Math.max(...themes.map((t) => clusterRadius(groups.get(t)!.length)))
+    const stepX = (W / 2 - PAD - maxCellR * 0.6) / Math.sqrt(T - 1)
+    const stepY = (H / 2 - PAD - maxCellR * 0.6) / Math.sqrt(T - 1)
+    themes.forEach((t, c) => {
+      const rr = Math.sqrt(c)
+      const ang = c * GOLDEN
+      anchors.set(t, { x: cx + Math.cos(ang) * rr * stepX, y: cy + Math.sin(ang) * rr * stepY })
     })
   }
 
