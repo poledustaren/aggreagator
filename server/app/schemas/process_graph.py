@@ -19,7 +19,7 @@ class GraphNode(BaseModel):
     item_count: int           # сколько сообщений процесса попало в окно
     importance: int = 0       # важность процесса H7 (для цвета/балла узла-циклона)
     max_importance: int = 0   # пик важности сообщений процесса
-    theme: str | None = None  # тема, назначенная LLM
+    theme: str | None = None  # персистентная тема процесса (process.theme_id)
 
 
 class GraphEdge(BaseModel):

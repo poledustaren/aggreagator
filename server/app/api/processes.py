@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import Device, Item, Process
 from app.models.entities import ProcessStatus as ORMProcessStatus
+from app.models.entities import Theme
 from app.pipeline.llm_provider import build_provider
 from app.pipeline.relation_finder import ProcInfo, RelationFinder
 from app.schemas.common import ProcessStatus
@@ -103,6 +104,17 @@ async def _load_item_agg(db: AsyncSession, process_ids: list[uuid.UUID]) -> dict
         .group_by(Item.process_id)
     )
     return {pid: (int(mx or 0), float(av or 0), int(cnt or 0)) for pid, mx, av, cnt in (await db.execute(stmt)).all()}
+
+
+async def _process_theme_names(db: AsyncSession, procs: list[Process]) -> dict:
+    """pid → имя персистентной темы (process.theme_id). Темы ведёт theme_linker при
+    ингесте, поэтому граф читает их напрямую из БД — без LLM и без лимита на процессы."""
+    theme_ids = {p.theme_id for p in procs if p.theme_id is not None}
+    if not theme_ids:
+        return {}
+    rows = (await db.execute(select(Theme.id, Theme.name).where(Theme.id.in_(theme_ids)))).all()
+    name_by_theme = {tid: nm for tid, nm in rows}
+    return {p.id: name_by_theme[p.theme_id] for p in procs if p.theme_id in name_by_theme}
 
 
 def _attach_importance(schema, agg: dict, now: datetime, p: Process) -> None:
@@ -206,7 +218,12 @@ async def processes_graph(
     device: Device = Depends(get_current_device),
     db: AsyncSession = Depends(get_db),
 ) -> ProcessGraph:
-    """Раздел «Связи»: процессы в окне → дерево тем + связи с аргументацией.
+    """Раздел «Связи»: процессы окна → тематические кластеры + связи с аргументацией.
+
+    Темы берутся из персистентного дерева (process.theme_id) — без LLM и без лимита
+    на число процессов. Рёбра LLM обосновывает пачками по парам-кандидатам (похожим
+    по centroid), поэтому число процессов ничего не упирает. Если LLM выключен —
+    отдаём узлы+темы без рёбер (граф всё равно полезен как карта тем).
 
     Результат кэшируется в памяти на graph_cache_ttl_seconds — повторные открытия
     отдаются мгновенно, без LLM-перегенерации. ?refresh=true форсирует пересчёт.
@@ -221,20 +238,13 @@ async def processes_graph(
         if cached is not None and (_time.monotonic() - cached[0]) < ttl:
             return cached[1]
 
-    llm = build_provider(settings)
-    if llm is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="LLM выключен (llm_provider=none) — граф связей недоступен.",
-        )
-
     agg = await _window_item_agg(db, from_, to)
     if not agg:
         empty = ProcessGraph(window_from=from_, window_to=to, nodes=[], themes=[], edges=[])
         _graph_cache[cache_key] = (_time.monotonic(), empty)
         return empty
 
-    # Берём процессы окна, приоритет — по числу сообщений в окне (важные крупнее).
+    # Процессы окна по убыванию активности; лимит — лишь предохранитель широких окон.
     ordered_ids = sorted(agg.keys(), key=lambda pid: agg[pid][2], reverse=True)
     max_procs = settings.graph_max_processes
     truncated = len(ordered_ids) > max_procs
@@ -242,17 +252,17 @@ async def processes_graph(
 
     procs = (await db.execute(select(Process).where(Process.id.in_(ordered_ids)))).scalars().all()
     by_id = {p.id: p for p in procs}
+    ordered_ids = [pid for pid in ordered_ids if pid in by_id]
 
-    # Важность процессов (H7) для окраски/балла узлов — по всем сообщениям процесса.
-    imp_agg = await _load_item_agg(db, list(ordered_ids))
+    # Важность (H7) для окраски/балла + темы из БД (persistent, без LLM).
+    imp_agg = await _load_item_agg(db, ordered_ids)
+    theme_name_of = await _process_theme_names(db, [by_id[pid] for pid in ordered_ids])
     now = _utc_now()
 
     nodes = []
     infos = []
     for pid in ordered_ids:
-        p = by_id.get(pid)
-        if p is None:
-            continue
+        p = by_id[pid]
         mn, mx, cnt = agg[pid]
         i_mx, i_av, i_cnt = imp_agg.get(pid, (0, 0.0, 0))
         nodes.append(
@@ -266,30 +276,37 @@ async def processes_graph(
                 item_count=cnt,
                 importance=_process_importance(i_mx, i_av, i_cnt, p.last_activity_at, p.status, now),
                 max_importance=i_mx,
+                theme=theme_name_of.get(pid),
             )
         )
         centroid = list(p.centroid) if p.centroid is not None else None
         infos.append(ProcInfo(id=p.id, title=p.title, summary=p.summary, centroid=centroid))
 
-    finder = RelationFinder(llm, settings)
-    analysis = await finder.analyze(infos)
+    # Темы графа = группировка узлов по персистентной теме (для кластеров/легенды).
+    themes_map: dict[str, list[uuid.UUID]] = {}
+    for pid in ordered_ids:
+        name = theme_name_of.get(pid)
+        if name:
+            themes_map.setdefault(name, []).append(pid)
+    themes = [GraphTheme(name=name, process_ids=ids) for name, ids in themes_map.items()]
 
-    themes = [GraphTheme(name=t["name"], process_ids=[uuid.UUID(x) for x in t["process_ids"]]) for t in analysis["themes"]]
-    edges = [
-        GraphEdge(
-            source=uuid.UUID(e["source"]),
-            target=uuid.UUID(e["target"]),
-            relation=e["relation"],
-            reason=e["reason"],
-            confidence=e["confidence"],
-        )
-        for e in analysis["edges"]
-    ]
-
-    # Проставим узлам их тему (для окраски).
-    theme_of = {pid: t.name for t in themes for pid in t.process_ids}
-    for n in nodes:
-        n.theme = theme_of.get(n.id)
+    # Рёбра: LLM только по парам-кандидатам, пачками. Без LLM — просто карта тем.
+    edges = []
+    llm = build_provider(settings)
+    if llm is not None:
+        finder = RelationFinder(llm, settings)
+        pairs = finder.candidate_pairs(infos)
+        raw_edges = await finder.find_edges(infos, pairs)
+        edges = [
+            GraphEdge(
+                source=uuid.UUID(e["source"]),
+                target=uuid.UUID(e["target"]),
+                relation=e["relation"],
+                reason=e["reason"],
+                confidence=e["confidence"],
+            )
+            for e in raw_edges
+        ]
 
     graph = ProcessGraph(window_from=from_, window_to=to, nodes=nodes, themes=themes, edges=edges, truncated=truncated)
     _graph_cache[cache_key] = (_time.monotonic(), graph)

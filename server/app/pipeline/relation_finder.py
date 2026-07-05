@@ -1,15 +1,19 @@
-"""RelationFinder — поиск связей между процессами в окне (раздел «Связи»).
+"""RelationFinder — поиск связей между процессами окна (раздел «Связи»).
 
-Двухступенчато:
+Темами процессов занимается НЕ этот модуль: они уже персистятся theme_linker'ом
+(process.theme_id) и читаются графом напрямую из БД. Здесь — только рёбра:
+
   1. Кандидаты — пары процессов с близкими centroid'ами (косинус ≥ порога). Дёшево,
-     сужает пространство для LLM.
-  2. LLM (glm-5.2:cloud) по списку процессов + кандидатным парам: группирует процессы
-     в темы (дерево) и обосновывает связи (тип + причина «почему связаны» + уверенность).
+     сужает пространство и снимает зависимость от общего числа процессов.
+  2. LLM обосновывает связи ТОЛЬКО по этим парам, ПАЧКАМИ и параллельно: каждая пара
+     самодостаточна (пара + причина), поэтому батчинг ничего не теряет. Так число
+     процессов больше не упирается в потолок одного промпта.
 
 Считается на лету при запросе окна — ничего не персистится.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import uuid
@@ -20,19 +24,17 @@ from app.pipeline.llm_provider import LLMProvider, parse_json_object
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM = """Ты анализируешь «процессы» пользователя (темы/проблемы, тянущиеся во времени)
-в выбранном промежутке. Процессы пронумерованы индексами [0], [1], … Тебе также дают
-пары-кандидаты, похожие по смыслу. Сделай две вещи:
-1. Сгруппируй процессы в ТЕМЫ (2-6 тем), каждая — набор индексов процессов.
-2. Определи СВЯЗИ между процессами и обоснуй каждую. Тип связи (relation):
-   same_entity (об одном человеке/сервисе/счёте), causal (одно вызвало другое),
-   follow_up (продолжение/следующий шаг), same_project (один проект/задача), related (иное).
-   Для каждой связи дай короткую причину «почему связаны» и уверенность 0..1.
-
-Опирайся на кандидатные пары, но можешь добавить очевидные связи и вне их, а слабые — отбросить.
+_SYSTEM_EDGES = """Тебе дают список «процессов» пользователя (темы/проблемы во времени),
+пронумерованных индексами [0], [1], …, и пары-кандидаты, похожие по смыслу. Для КАЖДОЙ
+пары реши, есть ли между процессами реальная связь. Если да — определи тип и обоснуй;
+если связи нет — просто НЕ включай пару в ответ.
+Тип связи (relation): same_entity (об одном человеке/сервисе/счёте), causal (одно вызвало
+другое), follow_up (продолжение/следующий шаг), same_project (один проект/задача), related (иное).
 Ссылайся на процессы ТОЛЬКО по их числовому индексу. Отвечай СТРОГО одним JSON:
-{"themes":[{"name":"<тема>","members":[0,3,5]}],
- "edges":[{"source":0,"target":3,"relation":"<тип>","reason":"<почему>","confidence":0.7}]}"""
+{"edges":[{"source":0,"target":3,"relation":"<тип>","reason":"<почему>","confidence":0.7}]}"""
+
+# Пар на один LLM-вызов. Пары независимы, поэтому батчи можно гнать параллельно.
+_PAIRS_PER_BATCH = 36
 
 
 @dataclass
@@ -58,6 +60,15 @@ def _cosine(a, b) -> float:
     return dot / (math.sqrt(na) * math.sqrt(nb))
 
 
+def _to_index(v, n: int) -> int | None:
+    """Индекс процесса из ответа модели (int или строка-цифра), в пределах [0, n)."""
+    try:
+        i = int(v)
+    except (ValueError, TypeError):
+        return None
+    return i if 0 <= i < n else None
+
+
 class RelationFinder:
     def __init__(self, llm: LLMProvider, settings: Settings) -> None:
         self._llm = llm
@@ -67,8 +78,10 @@ class RelationFinder:
         provider = (self._s.llm_provider or "").lower()
         return self._s.ollama_model_hard if provider == "ollama" else self._s.llm_model_hard
 
-    def candidate_pairs(self, procs: list[ProcInfo], threshold: float = 0.45, cap: int = 80) -> list[tuple]:
+    def candidate_pairs(self, procs: list[ProcInfo], threshold: float = 0.45, cap: int | None = None) -> list[tuple]:
         """Пары (i, j, sim) с косинусом centroid'ов ≥ threshold, топ-cap по убыванию."""
+        if cap is None:
+            cap = self._s.graph_max_edge_pairs
         pairs = []
         for i in range(len(procs)):
             ci = procs[i].centroid
@@ -84,97 +97,72 @@ class RelationFinder:
         pairs.sort(key=lambda t: t[2], reverse=True)
         return pairs[:cap]
 
-    async def analyze(self, procs: list[ProcInfo]) -> dict:
-        """Вернуть {"themes": [...], "edges": [...]} по процессам окна (ссылки по индексам)."""
-        if len(procs) < 2:
-            return {"themes": [], "edges": []}
+    async def find_edges(self, procs: list[ProcInfo], pairs: list[tuple]) -> list[dict]:
+        """Обосновать связи по парам-кандидатам. Пачками и параллельно; результат — список
+        рёбер {source,target(id-строки), relation, reason, confidence}, без дублей."""
+        if len(procs) < 2 or not pairs:
+            return []
 
-        pairs = self.candidate_pairs(procs)
+        batches = [pairs[i:i + _PAIRS_PER_BATCH] for i in range(0, len(pairs), _PAIRS_PER_BATCH)]
+        results = await asyncio.gather(*(self._edges_batch(procs, b) for b in batches), return_exceptions=True)
 
+        out: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for r in results:
+            if isinstance(r, BaseException):
+                logger.warning("Связи: батч рёбер упал: %r", r)
+                continue
+            for e in r:
+                key = tuple(sorted((e["source"], e["target"])))
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(e)
+        return out
+
+    async def _edges_batch(self, procs: list[ProcInfo], batch_pairs: list[tuple]) -> list[dict]:
+        # Локальная нумерация только вовлечённых процессов — промпт компактный,
+        # индексы стабильны внутри батча.
+        involved = sorted({i for pr in batch_pairs for i in (pr[0], pr[1])})
+        local = {gi: li for li, gi in enumerate(involved)}
         proc_lines = [
-            f"  [{i}] {(p.title or '')[:70]} | {(p.summary or '')[:90]}" for i, p in enumerate(procs)
+            f"  [{local[gi]}] {(procs[gi].title or '')[:70]} | {(procs[gi].summary or '')[:90]}" for gi in involved
         ]
-        pair_lines = [
-            f"  [{i}] ~ [{j}] (sim={sim:.2f})" for i, j, sim in pairs
-        ] or ["  (нет явных кандидатов — поищи связи сам)"]
-
+        pair_lines = [f"  [{local[i]}] ~ [{local[j]}] (sim={sim:.2f})" for i, j, sim in batch_pairs]
         prompt = (
-            "ПРОЦЕССЫ В ОКНЕ:\n" + "\n".join(proc_lines) + "\n\n"
+            "ПРОЦЕССЫ:\n" + "\n".join(proc_lines) + "\n\n"
             "ПАРЫ-КАНДИДАТЫ (похожи по смыслу):\n" + "\n".join(pair_lines) + "\n"
         )
 
-        # Потолок ответа растёт с числом процессов: больше процессов → больше тем и
-        # рёбер в JSON. Иначе на крупном окне ответ обрежется и распарсится в пустоту.
-        max_tokens = min(8192, max(4096, len(procs) * 140))
-
-        try:
-            text = await self._llm.complete(
-                model=self._model(), system=_SYSTEM, prompt=prompt, max_tokens=max_tokens
-            )
-        except Exception:
-            logger.exception("LLM-анализ связей не удался")
-            return {"themes": [], "edges": []}
-
+        text = await self._llm.complete(model=self._model(), system=_SYSTEM_EDGES, prompt=prompt, max_tokens=2048)
         data = parse_json_object(text)
-        themes = _norm_themes(data.get("themes"), procs)
-        edges = _norm_edges(data.get("edges"), procs)
-        if not themes and not edges:
-            logger.warning("Связи: пустой результат. len(text)=%d snippet=%r", len(text or ""), (text or "")[:300])
-        return {"themes": themes, "edges": edges}
 
-
-def _to_index(v, n: int) -> int | None:
-    """Индекс процесса из ответа модели (int или строка-цифра), в пределах [0, n)."""
-    try:
-        i = int(v)
-    except (ValueError, TypeError):
-        return None
-    return i if 0 <= i < n else None
-
-
-def _norm_themes(raw, procs: list[ProcInfo]) -> list[dict]:
-    n = len(procs)
-    out = []
-    for t in raw or []:
-        if not isinstance(t, dict):
-            continue
-        members = t.get("members") or t.get("process_ids") or t.get("indices") or []
-        ids = []
-        for m in members:
-            i = _to_index(m, n)
-            if i is not None:
-                ids.append(str(procs[i].id))
-        if ids:
-            out.append({"name": str(t.get("name") or "тема")[:80], "process_ids": ids})
-    return out
-
-
-def _norm_edges(raw, procs: list[ProcInfo]) -> list[dict]:
-    n = len(procs)
-    out = []
-    seen = set()
-    for e in raw or []:
-        if not isinstance(e, dict):
-            continue
-        si = _to_index(e.get("source"), n)
-        ti = _to_index(e.get("target"), n)
-        if si is None or ti is None or si == ti:
-            continue
-        key = tuple(sorted((si, ti)))
-        if key in seen:
-            continue
-        seen.add(key)
-        try:
-            conf = max(0.0, min(1.0, float(e.get("confidence", 0.5))))
-        except (ValueError, TypeError):
-            conf = 0.5
-        out.append(
-            {
-                "source": str(procs[si].id),
-                "target": str(procs[ti].id),
-                "relation": str(e.get("relation") or "related")[:32],
-                "reason": str(e.get("reason") or "")[:300],
-                "confidence": conf,
-            }
-        )
-    return out
+        edges: list[dict] = []
+        seen: set[tuple[int, int]] = set()
+        n_local = len(involved)
+        for e in data.get("edges") or []:
+            if not isinstance(e, dict):
+                continue
+            si = _to_index(e.get("source"), n_local)
+            ti = _to_index(e.get("target"), n_local)
+            if si is None or ti is None or si == ti:
+                continue
+            gi, gj = involved[si], involved[ti]
+            key = tuple(sorted((gi, gj)))
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                conf = max(0.0, min(1.0, float(e.get("confidence", 0.5))))
+            except (ValueError, TypeError):
+                conf = 0.5
+            edges.append(
+                {
+                    "source": str(procs[gi].id),
+                    "target": str(procs[gj].id),
+                    "relation": str(e.get("relation") or "related")[:32],
+                    "reason": str(e.get("reason") or "")[:300],
+                    "confidence": conf,
+                }
+            )
+        return edges
