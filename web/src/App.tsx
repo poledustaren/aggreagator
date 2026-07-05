@@ -10,8 +10,7 @@ import { FeedPage } from './pages/FeedPage'
 import { GroupsPage } from './pages/GroupsPage'
 
 // Вторичные и «тяжёлые» экраны — отдельными чанками, подгружаются по заходу.
-// Processes/Timeline/Relations тянут vis-network/vis-timeline (~половина бандла) —
-// незачем грузить их на главной.
+// Processes/Timeline тянут vis-timeline (~треть бандла) — незачем грузить на главной.
 const GtdPage = lazy(() => import('./pages/GtdPage').then((m) => ({ default: m.GtdPage })))
 const RulesPage = lazy(() => import('./pages/RulesPage').then((m) => ({ default: m.RulesPage })))
 const ProcessesPage = lazy(() => import('./pages/ProcessesPage').then((m) => ({ default: m.ProcessesPage })))

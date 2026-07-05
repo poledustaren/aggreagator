@@ -244,6 +244,8 @@ export interface GraphNode {
   start: string
   end: string
   item_count: number
+  importance: number // H7 процесса — цвет/балл узла
+  max_importance: number
   theme: string | null
 }
 

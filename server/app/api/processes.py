@@ -236,6 +236,10 @@ async def processes_graph(
     procs = (await db.execute(select(Process).where(Process.id.in_(ordered_ids)))).scalars().all()
     by_id = {p.id: p for p in procs}
 
+    # Важность процессов (H7) для окраски/балла узлов — по всем сообщениям процесса.
+    imp_agg = await _load_item_agg(db, list(ordered_ids))
+    now = _utc_now()
+
     nodes = []
     infos = []
     for pid in ordered_ids:
@@ -243,6 +247,7 @@ async def processes_graph(
         if p is None:
             continue
         mn, mx, cnt = agg[pid]
+        i_mx, i_av, i_cnt = imp_agg.get(pid, (0, 0.0, 0))
         nodes.append(
             GraphNode(
                 id=p.id,
@@ -252,6 +257,8 @@ async def processes_graph(
                 start=mn,
                 end=mx,
                 item_count=cnt,
+                importance=_process_importance(i_mx, i_av, i_cnt, p.last_activity_at, p.status, now),
+                max_importance=i_mx,
             )
         )
         centroid = list(p.centroid) if p.centroid is not None else None

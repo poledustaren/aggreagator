@@ -1,6 +1,6 @@
 /**
- * Экран «Связи»: пикер временного окна → граф процессов (vis-network) с
- * LLM-аргументацией рёбер + таймлайн окна снизу (сгруппирован по темам).
+ * Экран «Связи»: пикер временного окна → SVG-граф процессов (funufunu, узлы-циклоны)
+ * с LLM-аргументацией рёбер + таймлайн окна снизу (сгруппирован по темам).
  * Выделение синхронизировано: клик по узлу графа подсвечивает полосу
  * на таймлайне и наоборот (через общий selectedNodeId).
  */
@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react'
 import { ApiRequestError } from '../api/client'
 import { useProcessGraph } from '../hooks/useProcesses'
 import { WindowPicker, defaultWindow, type TimeWindow } from '../components/common/WindowPicker'
-import { RelationsGraph } from '../components/relations/RelationsGraph'
+import { RelationsGraphSvg } from '../components/relations/RelationsGraphSvg'
 import { RelationsTimeline } from '../components/relations/RelationsTimeline'
 import { RelationsLegend } from '../components/relations/RelationsLegend'
 import { SelectionPanel, type Selection } from '../components/relations/SelectionPanel'
@@ -80,8 +80,8 @@ export function RelationsPage() {
         <div>
           <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--ink)' }}>Связи</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--ink2)' }}>
-            Каждый узел — процесс. Линии — связи: что чему причина, что за чем следует.
-            Граф сохраняется и открывается мгновенно; «Обновить» пересчитывает его заново.
+            Узел-циклон — процесс: размер по активности, цвет и балл — по важности. Линии —
+            связи: что чему причина, что за чем следует. Граф кэшируется; «Обновить» пересчитывает.
           </p>
         </div>
         <button
@@ -132,10 +132,9 @@ export function RelationsPage() {
           )}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-            <RelationsGraph
+            <RelationsGraphSvg
               nodes={data.nodes}
               edges={data.edges}
-              themeColor={themeColor}
               onSelectNode={handleSelectNode}
               onSelectEdge={handleSelectEdge}
               onDeselect={handleDeselect}
@@ -143,18 +142,20 @@ export function RelationsPage() {
             />
             <div className="space-y-4">
               <SelectionPanel selection={selection} />
-              <RelationsLegend themes={data.themes} themeColor={themeColor} />
             </div>
           </div>
 
           <div>
-            <h2 className="mb-2 text-sm font-medium text-neutral-400">Таймлайн окна (по темам)</h2>
+            <h2 className="mb-2 text-sm font-medium" style={{ color: 'var(--ink2)' }}>Таймлайн окна (по темам)</h2>
             <RelationsTimeline
               nodes={data.nodes}
               themeColor={themeColor}
               onSelect={handleSelectNode}
               highlightNodeId={selectedNodeId}
             />
+            <div className="mt-3">
+              <RelationsLegend themes={data.themes} themeColor={themeColor} />
+            </div>
           </div>
         </>
       )}
